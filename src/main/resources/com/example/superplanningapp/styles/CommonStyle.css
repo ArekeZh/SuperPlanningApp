@@ -1,0 +1,135 @@
+/* === ОБЩИЕ НАСТРОЙКИ === */
+.root {
+    -fx-font-family: 'Segoe UI', sans-serif;
+    -fx-base: #f4f5f7; /* Светлый фон как в Trello */
+}
+
+/* === КНОПКИ === */
+.button {
+    -fx-background-color: #0079bf; /* Trello Blue */
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5px;
+    -fx-padding: 8 16;
+    -fx-cursor: hand;
+    -fx-transition: all 0.2s;
+}
+.button:hover {
+    -fx-background-color: #026aa7;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 5, 0, 0, 1);
+}
+.button:pressed {
+    -fx-background-color: #055a8c;
+}
+
+/* Кнопка "Опасная" (Удалить/Выход) */
+.btn-danger {
+    -fx-background-color: #eb5a46;
+}
+.btn-danger:hover { -fx-background-color: #cf513d; }
+
+/* Кнопка "Успех" (Сохранить/Добавить) */
+.btn-success {
+    -fx-background-color: #61bd4f;
+}
+.btn-success:hover { -fx-background-color: #519839; }
+
+/* Прозрачная кнопка (для иконок) */
+.btn-transparent {
+    -fx-background-color: transparent;
+    -fx-text-fill: #5e6c84;
+}
+.btn-transparent:hover {
+    -fx-background-color: rgba(9, 30, 66, 0.08);
+}
+
+/* === ПОЛЯ ВВОДА === */
+.text-field, .password-field, .text-area {
+    -fx-background-color: #fafbfc;
+    -fx-border-color: #dfe1e6;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 8;
+    -fx-font-size: 14px;
+}
+.text-field:focused, .password-field:focused, .text-area:focused {
+    -fx-border-color: #0079bf;
+    -fx-background-color: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(0,121,191,0.3), 5, 0, 0, 0);
+}
+
+/* === КАРТОЧКИ (Белые блоки) === */
+.card-view {
+    -fx-background-color: white;
+    -fx-background-radius: 8px;
+    -fx-effect: dropshadow(gaussian, rgba(9, 30, 66, 0.15), 5, 0, 0, 1);
+    -fx-padding: 20;
+}
+
+/* === ТРЕКЕР ПРИВЫЧЕК === */
+.calendar-grid {
+    -fx-hgap: 10;
+    -fx-vgap: 10;
+}
+
+/* Ячейка календаря */
+.calendar-cell {
+    -fx-background-color: #ebecf0;
+    -fx-background-radius: 6px;
+    -fx-min-width: 60;
+    -fx-min-height: 60;
+    -fx-alignment: center;
+    -fx-cursor: hand;
+}
+.calendar-cell:hover {
+    -fx-background-color: #dfe1e6;
+}
+.calendar-cell-selected {
+    -fx-background-color: #0079bf;
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(0,121,191,0.4), 8, 0, 0, 2);
+}
+.calendar-cell-today {
+    -fx-border-color: #0079bf;
+    -fx-border-width: 2px;
+    -fx-border-radius: 6px;
+}
+
+/* Чекбоксы привычек (Стилизация под большие кнопки) */
+.habit-check-box {
+    -fx-background-color: #f4f5f7;
+    -fx-background-radius: 8px;
+    -fx-padding: 15;
+    -fx-alignment: center-left;
+    -fx-spacing: 15;
+    -fx-cursor: hand;
+}
+.habit-check-box:hover {
+    -fx-background-color: #ebecf0;
+}
+.habit-check-box-completed {
+    -fx-background-color: rgba(97, 189, 79, 0.2); /* Светло-зеленый */
+}
+.habit-check-box-icon {
+    -fx-min-width: 24;
+    -fx-min-height: 24;
+    -fx-background-radius: 4;
+    -fx-border-color: #dfe1e6;
+    -fx-border-width: 2;
+}
+.habit-check-box-icon-checked {
+    -fx-background-color: #61bd4f;
+    -fx-border-color: #61bd4f;
+}
+
+/* === СООБЩЕНИЯ ОШИБОК === */
+.error-label {
+    -fx-text-fill: #eb5a46;
+    -fx-font-size: 12px;
+}
+.success-label {
+    -fx-text-fill: #61bd4f;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
