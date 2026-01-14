@@ -153,14 +153,20 @@
    cp .env.example .env
    ```
    
-   Откройте `.env` и заполните значения:
-   ```env
-   DB_HOST=your-database-endpoint.xxxxx.us-east-1.rds.amazonaws.com
-   DB_PORT=5432
-   DB_NAME=superplanning
-   DB_USER=postgres
-   DB_PASSWORD=your_secure_password_here
-   ```
+    Откройте `.env` и заполните значения:
+    ```env
+    DB_HOST=your-database-endpoint.xxxxx.us-east-1.rds.amazonaws.com
+    DB_PORT=5432
+    DB_NAME=superplanning
+    DB_USER=postgres
+    DB_PASSWORD=your_secure_password_here
+    GOOGLE_API_KEY=your_google_api_key_here
+    ```
+    
+    **Получение Google API ключа:**
+    - Перейдите на [Google AI Studio](https://ai.google.dev/)
+    - Создайте API ключ для Gemini
+    - Скопируйте ключ в `.env` файл
 
 4. **Настройте базу данных**
    
@@ -299,10 +305,12 @@ SuperPlanningApp/
 | `DB_NAME` | Имя базы данных | Да |
 | `DB_USER` | Master username из AWS RDS | Да |
 | `DB_PASSWORD` | Master password из AWS RDS | Да |
+| `GOOGLE_API_KEY` | API ключ Google Gemini для AI-функций. Получить можно на [ai.google.dev](https://ai.google.dev/) | Да |
 
 **⚠️ Важно:** 
 - Никогда не коммитьте файл `.env` в Git! Он уже добавлен в `.gitignore`.
 - Используйте `.env.example` как шаблон для настройки.
+- Все секретные данные (пароли, API ключи) должны храниться только в `.env` файле, который не попадает в Git.
 
 ---
 

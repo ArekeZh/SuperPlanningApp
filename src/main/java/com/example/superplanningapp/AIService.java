@@ -1,5 +1,6 @@
 package com.example.superplanningapp;
 
+import io.github.cdimascio.dotenv.Dotenv;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -12,11 +13,22 @@ import java.util.concurrent.CompletableFuture;
 
 public class AIService {
 
-    // API-Key
-    private static final String API_KEY = "AIzaSyDffPMUG6zlBJ4gz-Xh3-_HAsP14V9y1fY";
+    // API-Key загружается из .env файла
+    private static final String API_KEY;
+    private static final String API_URL;
 
-    // AI-Model
-    private static final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + API_KEY;
+    static {
+        try {
+            Dotenv dotenv = Dotenv.load();
+            API_KEY = dotenv.get("GOOGLE_API_KEY");
+            if (API_KEY == null || API_KEY.isEmpty()) {
+                throw new RuntimeException("GOOGLE_API_KEY не найден в .env файле! Пожалуйста, добавьте GOOGLE_API_KEY=your_key в .env");
+            }
+            API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + API_KEY;
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка загрузки GOOGLE_API_KEY из .env: " + e.getMessage(), e);
+        }
+    }
 
     public static CompletableFuture<String> askAI(String userMessage) {
         return CompletableFuture.supplyAsync(() -> {
