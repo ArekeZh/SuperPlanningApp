@@ -131,6 +131,14 @@
             <version>20240303</version>
         </dependency>
 
+        <!-- Только для тестов: база в памяти, чтобы проверять SQL без настоящего PostgreSQL -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.3.232</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -142,6 +150,16 @@
                 <configuration>
                     <source>17</source>
                     <target>17</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <!-- Surefire 3 умеет запускать JUnit 5 (встроенный в Maven 3.8 — нет) -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+                <configuration>
+                    <!-- Тесты не используют JavaFX: запускаем их на classpath, без модульной системы -->
+                    <useModulePath>false</useModulePath>
                 </configuration>
             </plugin>
             <plugin>

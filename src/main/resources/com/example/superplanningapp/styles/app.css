@@ -373,6 +373,22 @@
 .send-btn .icon { -fx-stroke: -c-bg; }
 .send-btn:disabled { -fx-opacity: 0.35; }
 
+/* План доски от ассистента: ждёт подтверждения — обведён акцентом. */
+.plan-card {
+    -fx-background-color: -c-ul, -c-card;
+    -fx-background-insets: 0, 1.5;
+    -fx-background-radius: 20, 19;
+    -fx-padding: 18 20 18 18;
+    -fx-spacing: 14;
+}
+.plan-card.decided { -fx-background-color: -c-tile-line, -c-card; -fx-background-insets: 0, 1; }
+.plan-list {
+    -fx-background-color: -c-tile;
+    -fx-background-radius: 14;
+    -fx-padding: 10 12 12 12;
+    -fx-spacing: 6;
+}
+
 /* --------------------------------------------------------- habits */
 .stat {
     -fx-background-color: -c-tile-line, -c-card;

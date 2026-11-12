@@ -1,6 +1,8 @@
 package com.example.superplanningapp;
 
 import com.example.superplanningapp.habits.HabitTrackerScene;
+import com.example.superplanningapp.trello.Board;
+import com.example.superplanningapp.trello.TrelloBoardScene;
 import com.example.superplanningapp.trello.TrelloHomeScene;
 import com.example.superplanningapp.ui.Icons;
 import com.example.superplanningapp.ui.Theme;
@@ -68,6 +70,7 @@ public class MenuScene {
         currentStage = stage;
         currentUser = user;
         collapsed = false;
+        ChatScene.resetSession(); // новый вход — новая переписка с ассистентом
         navItems.clear();
         expandedOnly.clear();
         collapsedOnly.clear();
@@ -123,6 +126,12 @@ public class MenuScene {
     public static void openBoards() {
         select("boards");
         setContent(TrelloHomeScene.createTrelloHomeView(currentUser));
+    }
+
+    /** Открыть конкретную доску (например, только что созданную ассистентом). */
+    public static void openBoard(Board board) {
+        select("boards");
+        setContent(TrelloBoardScene.createBoardView(currentUser, board));
     }
 
     public static void openHabits() {
