@@ -2,17 +2,30 @@ package com.example.superplanningapp.habits;
 
 import com.example.superplanningapp.MenuScene;
 import com.example.superplanningapp.User;
+import com.example.superplanningapp.ui.Icons;
+import com.example.superplanningapp.ui.Ui;
 import javafx.application.Platform;
+import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.Node;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -22,104 +35,173 @@ public class HabitTrackerScene {
     private static YearMonth currentYearMonth;
     private static LocalDate selectedDate;
 
-    // === UI ЭЛЕМЕНТЫ ===
+    // === UI ===
     private static Label monthYearLabel;
+    private static Label listTitleLabel;
     private static GridPane calendarGrid;
     private static VBox habitsListContainer;
     private static Label progressPercentLabel;
     private static Label progressCountLabel;
-    private static StackPane contentStack;
+    private static Label perfectDaysLabel;
+    private static ProgressBar dayProgress;
     private static ProgressIndicator loadingSpinner;
 
     // === КЭШ ДАННЫХ (ЧТОБЫ НЕ ГРУЗИТЬ БАЗУ ЛИШНИЙ РАЗ) ===
     private static Map<Integer, Integer> cachedMonthlyStats = null;
     private static int cachedTotalHabits = 0;
-    private static YearMonth cachedMonth = null; // Какой месяц сейчас в памяти
-    private static List<Habit> currentHabitsList; // Текущий список привычек
+    private static YearMonth cachedMonth = null;
+    private static List<Habit> currentHabitsList;
 
     private static boolean isLoading = false;
 
-    public static BorderPane createHabitsView(User user) {
+    public static Node createHabitsView(User user) {
         currentUser = user;
         currentYearMonth = YearMonth.now();
         selectedDate = LocalDate.now();
-
-        // Сбрасываем кэш при открытии страницы
         cachedMonthlyStats = null;
         cachedMonth = null;
+        currentHabitsList = null;
+        isLoading = false;
 
-        BorderPane mainLayout = new BorderPane();
-        mainLayout.setStyle("-fx-background-color: " + MenuScene.getBackgroundStyle() + ";");
+        // --- Заголовок ---
+        Button addHabitBtn = Ui.primary("Новая привычка", Icons.PLUS);
+        addHabitBtn.setOnAction(e -> showAddHabitDialog());
+        HBox head = Ui.headerRow(Ui.header("Трекер привычек", "Привычки",
+                "Отмечайте выполненное каждый день. Календарь подсветит дни, когда сделано всё, и дни, когда ничего."),
+                addHabitBtn);
 
-        VBox topSection = createTopSection();
-        mainLayout.setTop(topSection);
+        // --- Статистика ---
+        progressPercentLabel = Ui.label("0%", "stat-value");
+        dayProgress = new ProgressBar(0);
+        dayProgress.setMaxWidth(Double.MAX_VALUE);
+        dayProgress.setPrefHeight(8);
+        progressCountLabel = Ui.label("0 / 0", "stat-value");
+        perfectDaysLabel = Ui.label("0", "stat-value");
+        HBox stats = new HBox(16,
+                stat(Icons.CHART, "skill-sky", "Прогресс за день", progressPercentLabel, dayProgress),
+                stat(Icons.HABITS, "skill-green", "Выполнено", progressCountLabel,
+                        Ui.label("привычек на выбранный день", "row-meta")),
+                stat(Icons.FLAME, "skill-amber", "Идеальные дни", perfectDaysLabel,
+                        Ui.label("в этом месяце сделано всё", "row-meta")));
 
-        // --- КАЛЕНДАРЬ ---
-        calendarGrid = new GridPane();
-        calendarGrid.setAlignment(Pos.CENTER);
-        calendarGrid.setHgap(10);
-        calendarGrid.setVgap(10);
-        calendarGrid.setPadding(new Insets(20));
-
-        String cardBg = MenuScene.isDarkTheme ? MenuScene.Theme.SIDEBAR_DARK : "white";
-        calendarGrid.setStyle("-fx-background-color: " + cardBg + "; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 1);");
-
-        // --- СПИСОК ---
-        habitsListContainer = new VBox(15);
-        habitsListContainer.setPadding(new Insets(20));
-
-        VBox contentBox = new VBox(20, calendarGrid, habitsListContainer);
-        contentBox.setPadding(new Insets(20));
-        contentBox.setAlignment(Pos.TOP_CENTER);
-        contentBox.setStyle("-fx-background-color: transparent;");
-
-        ScrollPane scrollPane = new ScrollPane(contentBox);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-        scrollPane.getStyleClass().add("edge-to-edge");
-
+        // --- Календарь ---
+        monthYearLabel = Ui.label("", "h3");
         loadingSpinner = new ProgressIndicator();
-        loadingSpinner.setMaxSize(50, 50);
+        Ui.fix(loadingSpinner, 18);
         loadingSpinner.setVisible(false);
 
-        contentStack = new StackPane(scrollPane, loadingSpinner);
-        mainLayout.setCenter(contentStack);
+        Button prevMonthBtn = Ui.iconButton(Icons.CHEVRON_LEFT, "Предыдущий месяц");
+        prevMonthBtn.setOnAction(e -> {
+            currentYearMonth = currentYearMonth.minusMonths(1);
+            loadData(true);
+        });
+        Button nextMonthBtn = Ui.iconButton(Icons.CHEVRON_RIGHT, "Следующий месяц");
+        nextMonthBtn.setOnAction(e -> {
+            currentYearMonth = currentYearMonth.plusMonths(1);
+            loadData(true);
+        });
+        Button todayBtn = Ui.ghost("Сегодня", null);
+        todayBtn.getStyleClass().add("btn-sm");
+        todayBtn.setOnAction(e -> {
+            if (isLoading) return;
+            currentYearMonth = YearMonth.now();
+            selectedDate = LocalDate.now();
+            loadData(true);
+        });
+        HBox calHead = new HBox(8, monthYearLabel, loadingSpinner, Ui.hgrow(), todayBtn, prevMonthBtn, nextMonthBtn);
+        calHead.setAlignment(Pos.CENTER_LEFT);
 
-        // Первая полная загрузка
+        calendarGrid = new GridPane();
+        calendarGrid.setHgap(6);
+        calendarGrid.setVgap(6);
+        for (int i = 0; i < 7; i++) {
+            ColumnConstraints cc = new ColumnConstraints();
+            cc.setPercentWidth(100.0 / 7);
+            cc.setHgrow(Priority.ALWAYS);
+            cc.setHalignment(HPos.CENTER);
+            calendarGrid.getColumnConstraints().add(cc);
+        }
+
+        HBox legend = new HBox(18,
+                legendItem("full", "Всё сделано"),
+                legendItem("partial", "Частично"),
+                legendItem("none", "Пропуск"));
+        legend.setAlignment(Pos.CENTER_LEFT);
+
+        VBox calCard = new VBox(18, calHead, calendarGrid, legend);
+        calCard.getStyleClass().addAll("platform", "elev");
+        calCard.setMinWidth(370);
+        calCard.setPrefWidth(420);
+        calCard.setMaxWidth(440);
+
+        // --- Список привычек на день ---
+        listTitleLabel = Ui.label("", "h3");
+        habitsListContainer = new VBox(10);
+        VBox listCard = new VBox(16, new VBox(4, Ui.label("ВЫБРАННЫЙ ДЕНЬ", "mono"), listTitleLabel), habitsListContainer);
+        listCard.getStyleClass().addAll("platform", "elev");
+        listCard.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(listCard, Priority.ALWAYS);
+
+        // Две колонки на широком окне, одна — на узком.
+        HBox wide = new HBox(20);
+        VBox narrow = new VBox(20);
+        StackPane body = new StackPane(wide);
+        wide.getChildren().setAll(calCard, listCard);
+        body.widthProperty().addListener((o, a, w) -> {
+            Pane target = w.doubleValue() < 860 ? narrow : wide;
+            if (calCard.getParent() != target) {
+                target.getChildren().setAll(calCard, listCard);
+                body.getChildren().setAll(target);
+            }
+        });
+
+        updateMonthLabel();
+        updateListTitle();
+        Node page = Ui.page(head, stats, body);
         loadData(true);
+        return page;
+    }
 
-        return mainLayout;
+    private static VBox stat(String icon, String variant, String title, Label value, Node extra) {
+        HBox top = new HBox(10, Ui.skill(icon, variant, 30), Ui.label(title.toUpperCase(Ui.RU), "mono"));
+        top.setAlignment(Pos.CENTER_LEFT);
+        VBox box = new VBox(8, top, value, extra);
+        box.getStyleClass().add("stat");
+        box.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(box, Priority.ALWAYS);
+        return box;
+    }
+
+    private static HBox legendItem(String kind, String text) {
+        HBox item = new HBox(7, Ui.dot(9, "legend-dot", kind), Ui.label(text, "muted", "small"));
+        item.setAlignment(Pos.CENTER_LEFT);
+        return item;
     }
 
     /**
      * Умная загрузка данных.
-     * @param forceMonthReload - Если true, то перекачиваем статистику за весь месяц (при смене месяца).
-     * Если false, то качаем только список привычек на день (при клике на дату).
+     * @param forceMonthReload true — перекачать статистику месяца (смена месяца),
+     *                         false — только список привычек на день (клик по дате).
      */
     private static void loadData(boolean forceMonthReload) {
         if (isLoading) return;
         isLoading = true;
         loadingSpinner.setVisible(true);
 
-        // Если месяц изменился, нужно обновить кэш статистики
         boolean needToFetchMonth = forceMonthReload || cachedMonth == null || !cachedMonth.equals(currentYearMonth);
-
         CompletableFuture<Void> future;
 
         if (needToFetchMonth) {
-            // === СЦЕНАРИЙ 1: СМЕНА МЕСЯЦА (Грузим всё ПАРАЛЛЕЛЬНО) ===
+            // Смена месяца: три запроса параллельно
             cachedMonth = currentYearMonth;
-
-            // Запускаем 3 задачи одновременно
+            YearMonth month = currentYearMonth;
+            LocalDate day = selectedDate;
             CompletableFuture<Integer> totalFuture = CompletableFuture.supplyAsync(() ->
-                    HabitDAO.getTotalHabitsCount(currentUser.getId())
-            );
+                    HabitDAO.getTotalHabitsCount(currentUser.getId()));
             CompletableFuture<Map<Integer, Integer>> statsFuture = CompletableFuture.supplyAsync(() ->
-                    HabitDAO.getMonthlyCompletionCounts(currentUser.getId(), currentYearMonth.getYear(), currentYearMonth.getMonthValue())
-            );
+                    HabitDAO.getMonthlyCompletionCounts(currentUser.getId(), month.getYear(), month.getMonthValue()));
             CompletableFuture<List<Habit>> habitsFuture = CompletableFuture.supplyAsync(() ->
-                    HabitDAO.getHabitsForUser(currentUser.getId(), selectedDate)
-            );
+                    HabitDAO.getHabitsForUser(currentUser.getId(), day));
 
             future = CompletableFuture.allOf(totalFuture, statsFuture, habitsFuture).thenRun(() -> {
                 try {
@@ -128,20 +210,19 @@ public class HabitTrackerScene {
                     currentHabitsList = habitsFuture.get();
                 } catch (Exception e) { e.printStackTrace(); }
             });
-
         } else {
-            // === СЦЕНАРИЙ 2: СМЕНА ДНЯ (Грузим только список) ===
-            // Статистику не трогаем, она в кэше!
-            future = CompletableFuture.supplyAsync(() -> HabitDAO.getHabitsForUser(currentUser.getId(), selectedDate))
-                    .thenAccept(habits -> currentHabitsList = habits)
-                    .thenRun(() -> {}); // Пустышка для совместимости типов
+            // Смена дня: статистика уже в кэше, грузим только список
+            LocalDate day = selectedDate;
+            future = CompletableFuture.supplyAsync(() -> HabitDAO.getHabitsForUser(currentUser.getId(), day))
+                    .thenAccept(habits -> currentHabitsList = habits);
         }
 
-        // Когда всё загрузилось, обновляем UI
-        future.thenRun(() -> Platform.runLater(() -> {
-            updateCalendarUI(); // Перерисовка календаря теперь использует кэш и работает мгновенно
+        future.whenComplete((v, err) -> Platform.runLater(() -> {
+            if (err != null) err.printStackTrace();
+            updateMonthLabel();
+            updateCalendarUI();
             updateHabitListUI();
-            recalculateStatisticsLocally();
+            updateStats();
             loadingSpinner.setVisible(false);
             isLoading = false;
         }));
@@ -150,66 +231,44 @@ public class HabitTrackerScene {
     private static void handleDateClick(LocalDate date) {
         if (isLoading) return;
         selectedDate = date;
-        // При клике на дату внутри месяца НЕ перезагружаем статистику месяца, только список
         loadData(false);
     }
 
     private static void updateCalendarUI() {
         calendarGrid.getChildren().clear();
-        updateMonthLabel();
 
-        // Используем кэшированные данные
-        Map<Integer, Integer> monthlyStats = (cachedMonthlyStats != null) ? cachedMonthlyStats : Collections.emptyMap();
+        Map<Integer, Integer> monthlyStats = cachedMonthlyStats != null ? cachedMonthlyStats : Collections.emptyMap();
         int totalHabits = cachedTotalHabits;
 
-        String dayNameColor = MenuScene.isDarkTheme ? MenuScene.Theme.TEXT_SEC_DARK : "#6b778c";
-        String defaultText = MenuScene.isDarkTheme ? MenuScene.Theme.TEXT_MAIN_DARK : "black";
-        String[] daysOfWeek = {"Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"};
-
+        String[] daysOfWeek = {"ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"};
         for (int i = 0; i < 7; i++) {
-            Label dayName = new Label(daysOfWeek[i]);
-            dayName.setStyle("-fx-text-fill: " + dayNameColor + "; -fx-font-weight: bold;");
-            GridPane.setHalignment(dayName, javafx.geometry.HPos.CENTER);
-            calendarGrid.add(dayName, i, 0);
+            calendarGrid.add(Ui.label(daysOfWeek[i], "cal-head"), i, 0);
         }
 
         LocalDate firstOfMonth = currentYearMonth.atDay(1);
-        int dayOfWeekOffset = firstOfMonth.getDayOfWeek().getValue() - 1;
-        if (dayOfWeekOffset < 0) dayOfWeekOffset = 6;
-        int daysInMonth = currentYearMonth.lengthOfMonth();
+        int col = firstOfMonth.getDayOfWeek().getValue() - 1;
+        int row = 1;
         LocalDate today = LocalDate.now();
 
-        int row = 1; int col = dayOfWeekOffset;
-        for (int day = 1; day <= daysInMonth; day++) {
+        for (int day = 1; day <= currentYearMonth.lengthOfMonth(); day++) {
             LocalDate date = currentYearMonth.atDay(day);
             Button dayBtn = new Button(String.valueOf(day));
+            dayBtn.getStyleClass().setAll("button", "day");
             dayBtn.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+            dayBtn.setMinHeight(38);
+            dayBtn.setPrefHeight(44);
 
-            String baseStyle = "-fx-background-color: transparent; -fx-text-fill: " + defaultText + "; -fx-cursor: hand; -fx-background-radius: 5;";
-            int completedCount = monthlyStats.getOrDefault(day, 0);
-            String style = baseStyle;
-
-            // Логика выделения
-            if (date.equals(selectedDate)) {
-                // Выбранный день
-                style = "-fx-background-color: transparent; -fx-text-fill: " + MenuScene.Theme.ACCENT + "; -fx-border-color: " + MenuScene.Theme.ACCENT + "; -fx-border-radius: 5; -fx-font-weight: bold;";
-            } else if (date.equals(today)) {
-                style += "-fx-font-weight: bold; -fx-underline: true;";
+            int completed = monthlyStats.getOrDefault(day, 0);
+            if (date.isAfter(today)) {
+                dayBtn.getStyleClass().add("future");
+            } else if (totalHabits > 0) {
+                dayBtn.getStyleClass().add(completed >= totalHabits ? "full" : completed == 0 ? "none" : "partial");
+                dayBtn.setTooltip(Ui.tip("Выполнено " + Math.min(completed, totalHabits) + " из " + totalHabits));
             }
+            if (date.equals(today)) dayBtn.getStyleClass().add("today");
+            if (date.equals(selectedDate)) dayBtn.getStyleClass().add("selected");
 
-            // Логика цветов успеха (зеленый/красный)
-            if (totalHabits > 0 && !date.isAfter(today) && !date.equals(selectedDate)) {
-                if (completedCount == totalHabits) {
-                    style = "-fx-background-color: #0f5132; -fx-text-fill: #d1e7dd; -fx-background-radius: 5;";
-                    if (!MenuScene.isDarkTheme) style = "-fx-background-color: #d1e7dd; -fx-text-fill: #0f5132; -fx-background-radius: 5;";
-                } else if (completedCount == 0) {
-                    style = "-fx-background-color: #842029; -fx-text-fill: #f8d7da; -fx-background-radius: 5;";
-                    if (!MenuScene.isDarkTheme) style = "-fx-background-color: #f8d7da; -fx-text-fill: #842029; -fx-background-radius: 5;";
-                }
-            }
-
-            dayBtn.setStyle(style);
-            dayBtn.setOnAction(e -> handleDateClick(date)); // Вызываем быстрый обработчик
+            dayBtn.setOnAction(e -> handleDateClick(date));
             calendarGrid.add(dayBtn, col, row);
 
             col++;
@@ -217,206 +276,123 @@ public class HabitTrackerScene {
         }
     }
 
-    private static void handleToggleOptimistic(Habit habit, Button checkBox, HBox row, Label title) {
+    private static void handleToggleOptimistic(Habit habit, Button check, HBox row) {
         boolean isNowCompleted = !habit.isCompletedOnSelectedDate();
         habit.setCompletedOnSelectedDate(isNowCompleted);
 
-        // Обновляем визуально мгновенно
-        updateCheckBoxStyle(checkBox, isNowCompleted);
+        // Мгновенно меняем вид, запрос в базу — в фоне
+        setDone(check, row, isNowCompleted);
 
-        String rowBg = MenuScene.isDarkTheme ? MenuScene.Theme.SIDEBAR_DARK : "white";
-        if (isNowCompleted) {
-            row.setStyle("-fx-background-color: " + (MenuScene.isDarkTheme ? "#1e2a24" : "#e8f5e9") + "; -fx-background-radius: 8;");
-            title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + (MenuScene.isDarkTheme ? "#555" : "#aaa") + ";");
-        } else {
-            row.setStyle("-fx-background-color: " + rowBg + "; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 2, 0, 0, 1);");
-            title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + MenuScene.getTextStyle() + ";");
-        }
-        recalculateStatisticsLocally();
-
-        // Обновляем кэш статистики в памяти (чтобы календарь не врал, если мы переключим день туда-сюда)
-        if (cachedMonthlyStats != null) {
+        if (cachedMonthlyStats != null && YearMonth.from(selectedDate).equals(currentYearMonth)) {
             int day = selectedDate.getDayOfMonth();
-            int currentCount = cachedMonthlyStats.getOrDefault(day, 0);
-            cachedMonthlyStats.put(day, isNowCompleted ? currentCount + 1 : Math.max(0, currentCount - 1));
-            // Календарь не перерисовываем сразу, чтобы не моргал, он обновится при следующем клике
+            int count = cachedMonthlyStats.getOrDefault(day, 0);
+            cachedMonthlyStats.put(day, isNowCompleted ? count + 1 : Math.max(0, count - 1));
         }
+        updateStats();
+        updateCalendarUI();
 
-        CompletableFuture.runAsync(() -> HabitDAO.toggleHabitCompletion(habit.getId(), selectedDate, isNowCompleted));
+        LocalDate day = selectedDate;
+        CompletableFuture.runAsync(() -> HabitDAO.toggleHabitCompletion(habit.getId(), day, isNowCompleted));
     }
 
-    private static void recalculateStatisticsLocally() {
-        if (currentHabitsList == null || currentHabitsList.isEmpty()) {
-            progressCountLabel.setText("0");
-            progressPercentLabel.setText("0%");
-            return;
+    private static void setDone(Button check, HBox row, boolean done) {
+        check.getStyleClass().remove("on");
+        row.getStyleClass().remove("done");
+        if (done) {
+            check.getStyleClass().add("on");
+            row.getStyleClass().add("done");
         }
-        long completedCount = currentHabitsList.stream().filter(Habit::isCompletedOnSelectedDate).count();
-        int total = currentHabitsList.size();
-        progressCountLabel.setText(String.valueOf(completedCount));
-        int percent = (total > 0) ? (int)((completedCount * 100) / total) : 0;
+    }
+
+    private static void updateStats() {
+        int total = currentHabitsList == null ? 0 : currentHabitsList.size();
+        long done = total == 0 ? 0 : currentHabitsList.stream().filter(Habit::isCompletedOnSelectedDate).count();
+        int percent = total > 0 ? (int) (done * 100 / total) : 0;
         progressPercentLabel.setText(percent + "%");
-    }
+        progressCountLabel.setText(done + " / " + total);
+        dayProgress.setProgress(total > 0 ? (double) done / total : 0);
 
-    private static void updateCheckBoxStyle(Button checkBox, boolean isCompleted) {
-        checkBox.setText(isCompleted ? "✔" : "");
-        checkBox.setStyle("-fx-background-color: " + (isCompleted ? MenuScene.Theme.ACCENT : "transparent") + "; " +
-                "-fx-text-fill: white; " +
-                "-fx-border-color: " + MenuScene.Theme.ACCENT + "; " +
-                "-fx-border-width: 2; " +
-                "-fx-border-radius: 4; -fx-background-radius: 4; -fx-min-width: 30; -fx-max-width: 30; -fx-min-height: 30; -fx-cursor: hand;");
+        int perfect = 0;
+        if (cachedMonthlyStats != null && cachedTotalHabits > 0) {
+            LocalDate today = LocalDate.now();
+            for (int d = 1; d <= currentYearMonth.lengthOfMonth(); d++) {
+                if (!currentYearMonth.atDay(d).isAfter(today)
+                        && cachedMonthlyStats.getOrDefault(d, 0) >= cachedTotalHabits) perfect++;
+            }
+        }
+        perfectDaysLabel.setText(String.valueOf(perfect));
     }
 
     private static void updateHabitListUI() {
         habitsListContainer.getChildren().clear();
-        DateTimeFormatter listFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("ru"));
-
-        Label dateLabel = new Label("Привычки на " + selectedDate.format(listFormatter));
-        dateLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: " + MenuScene.getTextStyle() + ";");
-        habitsListContainer.getChildren().add(dateLabel);
+        updateListTitle();
 
         if (currentHabitsList == null || currentHabitsList.isEmpty()) {
-            Label emptyLabel = new Label("У вас пока нет привычек. Добавьте первую!");
-            emptyLabel.setStyle("-fx-text-fill: " + (MenuScene.isDarkTheme ? MenuScene.Theme.TEXT_SEC_DARK : "#6b778c") + "; -fx-font-style: italic;");
-            habitsListContainer.getChildren().add(emptyLabel);
+            Button addBtn = Ui.ghost("Добавить привычку", Icons.PLUS);
+            addBtn.setOnAction(e -> showAddHabitDialog());
+            Label hint = Ui.wrap("Начните с простого: «Стакан воды утром», «10 минут чтения», «Прогулка».", "muted");
+            hint.setMaxWidth(340);
+            hint.setAlignment(Pos.CENTER);
+            hint.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+            VBox empty = new VBox(10, Ui.skill(Icons.HABITS, "skill-green", 50), Ui.label("Пока нет привычек", "h3"), hint, addBtn);
+            empty.setAlignment(Pos.CENTER);
+            empty.setPadding(new Insets(26, 10, 20, 10));
+            VBox.setMargin(addBtn, new Insets(6, 0, 0, 0));
+            habitsListContainer.getChildren().add(empty);
             return;
         }
 
-        String rowBg = MenuScene.isDarkTheme ? MenuScene.Theme.SIDEBAR_DARK : "white";
-        String textColor = MenuScene.getTextStyle();
-
+        int i = 0;
         for (Habit habit : currentHabitsList) {
-            HBox habitRow = new HBox(15);
-            habitRow.setAlignment(Pos.CENTER_LEFT);
-            habitRow.setPadding(new Insets(10));
+            Button check = new Button();
+            check.getStyleClass().setAll("button", "check");
+            check.setGraphic(Icons.of(Icons.CHECK, 15));
+            Ui.fix(check, 28);
+            check.setTooltip(Ui.tip("Отметить выполнение"));
 
-            if (habit.isCompletedOnSelectedDate()) {
-                habitRow.setStyle("-fx-background-color: " + (MenuScene.isDarkTheme ? "#1e2a24" : "#e8f5e9") + "; -fx-background-radius: 8;");
-            } else {
-                habitRow.setStyle("-fx-background-color: " + rowBg + "; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 2, 0, 0, 1);");
-            }
+            Label title = Ui.wrap(habit.getTitle(), "habit-title");
+            title.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(title, Priority.ALWAYS);
 
-            Button checkBox = new Button();
-            updateCheckBoxStyle(checkBox, habit.isCompletedOnSelectedDate());
-
-            Label title = new Label(habit.getTitle());
-            title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + textColor + ";");
-            if (habit.isCompletedOnSelectedDate()) {
-                title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + (MenuScene.isDarkTheme ? "#555" : "#aaa") + ";");
-            }
-
-            checkBox.setOnAction(e -> handleToggleOptimistic(habit, checkBox, habitRow, title));
-
-            Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
-            Button deleteBtn = new Button("🗑");
-            deleteBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: " + MenuScene.Theme.ERROR + "; -fx-cursor: hand; -fx-font-size: 14px;");
+            Button deleteBtn = Ui.iconButton(Icons.TRASH, "Удалить привычку", "danger");
             deleteBtn.setOnAction(e -> handleDelete(habit));
 
-            habitRow.getChildren().addAll(checkBox, title, spacer, deleteBtn);
-            habitsListContainer.getChildren().add(habitRow);
+            HBox row = new HBox(check, title, deleteBtn);
+            row.getStyleClass().add("habit-row");
+            setDone(check, row, habit.isCompletedOnSelectedDate());
+            check.setOnAction(e -> handleToggleOptimistic(habit, check, row));
+
+            habitsListContainer.getChildren().add(row);
+            Ui.rise(row, i++);
         }
     }
 
     private static void handleDelete(Habit habit) {
         if (isLoading) return;
+        boolean ok = Ui.confirm("Удалить привычку «" + habit.getTitle() + "»?",
+                "История отметок этой привычки тоже удалится.", "Удалить", true, MenuScene.getStage());
+        if (!ok) return;
         loadingSpinner.setVisible(true);
         CompletableFuture.runAsync(() -> HabitDAO.deleteHabit(habit.getId()))
-                .thenRun(() -> Platform.runLater(() -> loadData(true))); // Тут нужен полный релоад, чтобы обновить статистику
+                .thenRun(() -> Platform.runLater(() -> loadData(true)));
     }
 
     private static void showAddHabitDialog() {
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle("Создать привычку");
-        dialog.setHeaderText("Новая глобальная привычка");
-        dialog.setContentText("Название:");
-        dialog.initOwner(MenuScene.getStage());
-
-        if (MenuScene.isDarkTheme) {
-            DialogPane pane = dialog.getDialogPane();
-            pane.setStyle("-fx-background-color: " + MenuScene.Theme.HOVER_DARK + ";");
-            pane.lookup(".content.label").setStyle("-fx-text-fill: white;");
-            pane.lookup(".header-panel").setStyle("-fx-background-color: " + MenuScene.Theme.SIDEBAR_DARK + "; -fx-text-fill: white;");
-        }
-
-        dialog.showAndWait().ifPresent(name -> {
-            if (!name.trim().isEmpty()) {
-                loadingSpinner.setVisible(true);
-                CompletableFuture.runAsync(() -> HabitDAO.createHabit(currentUser.getId(), name.trim()))
-                        .thenRun(() -> Platform.runLater(() -> loadData(true)));
-            }
-        });
-    }
-
-    private static VBox createTopSection() {
-        VBox root = new VBox(20);
-        root.setPadding(new Insets(20));
-        String bg = MenuScene.isDarkTheme ? MenuScene.Theme.SIDEBAR_DARK : "white";
-        root.setStyle("-fx-background-color: " + bg + "; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);");
-
-        HBox header = new HBox(20);
-        header.setAlignment(Pos.CENTER);
-
-        String navBtnStyle = "-fx-background-color: transparent; -fx-text-fill: " + MenuScene.getTextStyle() + "; -fx-font-size: 18px; -fx-cursor: hand; -fx-border-color: " + (MenuScene.isDarkTheme ? "#333" : "#ccc") + "; -fx-border-radius: 5;";
-
-        Button prevMonthBtn = new Button("<");
-        prevMonthBtn.setStyle(navBtnStyle);
-        prevMonthBtn.setOnAction(e -> {
-            currentYearMonth = currentYearMonth.minusMonths(1);
-            loadData(true); // Смена месяца - полная загрузка
-        });
-
-        monthYearLabel = new Label();
-        monthYearLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + MenuScene.getTextStyle() + ";");
-        updateMonthLabel();
-
-        Button nextMonthBtn = new Button(">");
-        nextMonthBtn.setStyle(navBtnStyle);
-        nextMonthBtn.setOnAction(e -> {
-            currentYearMonth = currentYearMonth.plusMonths(1);
-            loadData(true); // Смена месяца - полная загрузка
-        });
-
-        Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        Button addHabitBtn = new Button("+ Новая привычка");
-        addHabitBtn.setStyle("-fx-background-color: " + MenuScene.Theme.ACCENT + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;");
-        addHabitBtn.setOnAction(e -> showAddHabitDialog());
-
-        header.getChildren().addAll(prevMonthBtn, monthYearLabel, nextMonthBtn, spacer, addHabitBtn);
-
-        HBox statsBox = new HBox(40);
-        statsBox.setAlignment(Pos.CENTER);
-        VBox stat1 = createStatCard("ПРОГРЕСС ЗА ДЕНЬ", true);
-        VBox stat2 = createStatCard("ВЫПОЛНЕНО СЕГОДНЯ", false);
-        statsBox.getChildren().addAll(stat1, stat2);
-
-        root.getChildren().addAll(header, statsBox);
-        return root;
-    }
-
-    private static VBox createStatCard(String title, boolean isPercent) {
-        VBox box = new VBox(5);
-        box.setAlignment(Pos.CENTER);
-        box.setPadding(new Insets(15, 30, 15, 30));
-        String cardBg = MenuScene.isDarkTheme ? MenuScene.Theme.HOVER_DARK : "#f4f5f7";
-        String subTextColor = MenuScene.isDarkTheme ? MenuScene.Theme.TEXT_SEC_DARK : "#6b778c";
-        box.setStyle("-fx-background-color: " + cardBg + "; -fx-background-radius: 8;");
-
-        Label valueLabel = new Label("...");
-        valueLabel.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #0079bf;");
-
-        Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: " + subTextColor + "; -fx-font-weight: bold;");
-
-        if (isPercent) progressPercentLabel = valueLabel;
-        else progressCountLabel = valueLabel;
-        box.getChildren().addAll(valueLabel, titleLabel);
-        return box;
+        Ui.prompt("Новая привычка", "Привычка появится в списке на каждый день.", "Название",
+                        null, "Например, «10 минут чтения»", "Создать", MenuScene.getStage())
+                .ifPresent(name -> {
+                    loadingSpinner.setVisible(true);
+                    CompletableFuture.runAsync(() -> HabitDAO.createHabit(currentUser.getId(), name))
+                            .thenRun(() -> Platform.runLater(() -> loadData(true)));
+                });
     }
 
     private static void updateMonthLabel() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("LLLL yyyy", new Locale("ru"));
-        String monthText = currentYearMonth.format(formatter);
-        monthYearLabel.setText(monthText.substring(0, 1).toUpperCase() + monthText.substring(1));
+        monthYearLabel.setText(Ui.capitalize(currentYearMonth.format(DateTimeFormatter.ofPattern("LLLL yyyy", Ui.RU))));
+    }
+
+    private static void updateListTitle() {
+        String text = selectedDate.format(DateTimeFormatter.ofPattern("d MMMM, EEEE", Ui.RU));
+        listTitleLabel.setText(selectedDate.equals(LocalDate.now()) ? "Сегодня · " + text : Ui.capitalize(text));
     }
 }

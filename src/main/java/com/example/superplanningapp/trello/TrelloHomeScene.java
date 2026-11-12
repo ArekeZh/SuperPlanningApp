@@ -3,18 +3,31 @@ package com.example.superplanningapp.trello;
 import com.example.superplanningapp.MenuScene;
 import com.example.superplanningapp.User;
 import com.example.superplanningapp.UserDAO;
+import com.example.superplanningapp.ui.Icons;
+import com.example.superplanningapp.ui.Theme;
+import com.example.superplanningapp.ui.Ui;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.image.Image;
-import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.paint.ImagePattern;
-import javafx.scene.shape.Circle;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.input.MouseButton;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
@@ -26,517 +39,527 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+/** Список досок пользователя, приглашения и уведомления. */
 public class TrelloHomeScene {
 
+    private static final String[] VARIANTS = {"skill-sky", "skill-purple", "skill-pink", "skill-amber", "skill-green"};
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("dd.MM HH:mm");
+
     private static Label notificationBadge;
+    private static FlowPane currentGrid;
+    private static ProgressIndicator currentSpinner;
+    private static User currentUser;
 
-    public static BorderPane createTrelloHomeView(User user) {
-        BorderPane mainLayout = new BorderPane();
-        mainLayout.setStyle("-fx-background-color: " + MenuScene.getBackgroundStyle() + ";");
+    public static Node createTrelloHomeView(User user) {
+        currentUser = user;
 
-        HBox topBar = new HBox(15);
-        topBar.setPadding(new Insets(20));
-        topBar.setAlignment(Pos.CENTER_LEFT);
-
-        String topBarBg = MenuScene.isDarkTheme ? MenuScene.Theme.SIDEBAR_DARK : "rgba(255,255,255,0.5)";
-        topBar.setStyle("-fx-background-color: " + topBarBg + "; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 1);");
-
-        Label titleLabel = new Label("📋 Мои доски");
-        titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + MenuScene.getTextStyle() + ";");
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        StackPane notificationBtnContainer = new StackPane();
-        Button notificationBtn = new Button("🔔 Уведомления");
-        String notifBtnStyle = MenuScene.isDarkTheme ? "-fx-background-color: #333; -fx-text-fill: white;" : "-fx-background-color: white; -fx-text-fill: #333;";
-        notificationBtn.setStyle(notifBtnStyle + " -fx-cursor: hand; -fx-background-radius: 5;");
-        notificationBtn.setOnAction(e -> showNotificationsDialog(user, mainLayout));
-
-        notificationBadge = new Label("0");
-        notificationBadge.setStyle("-fx-background-color: " + MenuScene.Theme.ERROR + "; -fx-text-fill: white; -fx-font-size: 10px; -fx-font-weight: bold; -fx-padding: 2 5; -fx-background-radius: 10;");
+        Button notificationBtn = Ui.ghost("Уведомления", Icons.BELL);
+        notificationBadge = Ui.label("0", "badge");
         notificationBadge.setVisible(false);
+        notificationBadge.setMouseTransparent(true);
+        StackPane notificationWrap = new StackPane(notificationBtn, notificationBadge);
         StackPane.setAlignment(notificationBadge, Pos.TOP_RIGHT);
-        notificationBadge.setTranslateX(5);
+        notificationBadge.setTranslateX(4);
         notificationBadge.setTranslateY(-5);
-        notificationBtnContainer.getChildren().addAll(notificationBtn, notificationBadge);
 
-        Button createBtn = new Button("+ Создать доску");
-        createBtn.setStyle("-fx-background-color: " + MenuScene.Theme.ACCENT + "; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 8 15; -fx-font-weight: bold;");
+        Button createBtn = Ui.primary("Создать доску", Icons.PLUS);
 
-        topBar.getChildren().addAll(titleLabel, spacer, notificationBtnContainer, createBtn);
+        HBox head = Ui.headerRow(Ui.header("Доски", "Мои доски",
+                "Канбан-доски для проектов: списки, задачи и совместная работа. "
+                        + "Владелец доски может пригласить участников по нику, email или телефону."),
+                notificationWrap, createBtn);
 
-        StackPane centerStack = new StackPane();
-        FlowPane boardsGrid = new FlowPane();
-        boardsGrid.setHgap(20);
-        boardsGrid.setVgap(20);
-        boardsGrid.setPadding(new Insets(30));
-        boardsGrid.setAlignment(Pos.TOP_LEFT);
-
-        ScrollPane scrollPane = new ScrollPane(boardsGrid);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-        scrollPane.getStyleClass().add("edge-to-edge");
-
+        FlowPane grid = new FlowPane(18, 18);
+        grid.setAlignment(Pos.TOP_LEFT);
         ProgressIndicator spinner = new ProgressIndicator();
-        spinner.setMaxSize(50, 50);
+        Ui.fix(spinner, 34);
+        StackPane gridHost = new StackPane(grid, spinner);
+        StackPane.setAlignment(spinner, Pos.TOP_CENTER);
+        currentGrid = grid;
+        currentSpinner = spinner;
+
+        notificationBtn.setOnAction(e -> showNotificationsDialog(user));
+        createBtn.setOnAction(e -> showCreateBoardDialog(user));
+
+        refreshBoardsAsync();
+        checkNotificationsAsync(user.getId());
+        return Ui.page(head, gridHost);
+    }
+
+    // ------------------------------------------------------------- boards
+
+    private static void refreshBoardsAsync() {
+        FlowPane grid = currentGrid;
+        ProgressIndicator spinner = currentSpinner;
+        User user = currentUser;
+        if (grid == null || user == null) return;
         spinner.setVisible(true);
 
-        centerStack.getChildren().addAll(scrollPane, spinner);
-        mainLayout.setTop(topBar);
-        mainLayout.setCenter(centerStack);
-
-        refreshBoardsAsync(boardsGrid, user, spinner);
-        checkNotificationsAsync(user.getId());
-
-        createBtn.setOnAction(e -> showCreateBoardDialog(user, boardsGrid, spinner));
-
-        return mainLayout;
-    }
-
-    private static void refreshBoardsAsync(FlowPane grid, User user, ProgressIndicator spinner) {
-        if(spinner != null) spinner.setVisible(true);
         CompletableFuture.supplyAsync(() -> TrelloDAO.getAllBoards(user.getId()))
-                .thenAccept(boards -> Platform.runLater(() -> {
+                .whenComplete((boards, err) -> Platform.runLater(() -> {
+                    spinner.setVisible(false);
                     grid.getChildren().clear();
-                    if(spinner != null) spinner.setVisible(false);
-                    if (boards.isEmpty()) {
-                        Label noBoards = new Label("У вас еще нет досок.");
-                        noBoards.setStyle("-fx-font-size: 16px; -fx-text-fill: " + MenuScene.Theme.TEXT_SEC_DARK + ";");
-                        grid.getChildren().add(noBoards);
-                    } else {
-                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy");
-                        for (Board board : boards) {
-                            grid.getChildren().add(createBoardCard(board, user, formatter));
-                        }
+                    if (err != null) err.printStackTrace();
+                    if (boards == null || boards.isEmpty()) {
+                        grid.getChildren().add(emptyState(user));
+                        return;
                     }
-                })).exceptionally(ex -> {
-                    Platform.runLater(() -> { if(spinner != null) spinner.setVisible(false); ex.printStackTrace(); });
-                    return null;
-                });
+                    int i = 0;
+                    for (Board board : boards) {
+                        VBox card = createBoardCard(board, user);
+                        grid.getChildren().add(card);
+                        Ui.rise(card, i++);
+                    }
+                }));
     }
 
-    private static VBox createBoardCard(Board board, User currentUser, DateTimeFormatter formatter) {
-        VBox card = new VBox(10);
-        card.setPrefSize(300, 240);
+    private static VBox emptyState(User user) {
+        Button create = Ui.primary("Создать доску", Icons.PLUS);
+        create.setOnAction(e -> showCreateBoardDialog(user));
+        Label hint = Ui.wrap("Создайте первую доску или примите приглашение от друга — оно появится в уведомлениях.", "muted");
+        hint.setMaxWidth(380);
+        VBox empty = new VBox(12, Ui.skill(Icons.KANBAN, "skill-sky", 52), Ui.label("Пока нет досок", "h3"), hint, create);
+        empty.getStyleClass().add("platform");
+        empty.setPrefWidth(520);
+        empty.setPadding(new Insets(32));
+        VBox.setMargin(create, new Insets(6, 0, 0, 0));
+        return empty;
+    }
 
-        String cardBg = MenuScene.isDarkTheme ? "#232323" : "white";
-        String shadow = MenuScene.isDarkTheme ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.2)";
-        String textColor = MenuScene.getTextStyle();
-        String descColor = MenuScene.isDarkTheme ? MenuScene.Theme.TEXT_SEC_DARK : "#666";
+    private static VBox createBoardCard(Board board, User user) {
+        boolean isOwner = board.getUserId() == user.getId();
 
-        card.setStyle("-fx-background-color: " + cardBg + "; -fx-background-radius: 10; -fx-padding: 20; -fx-effect: dropshadow(gaussian, " + shadow + ", 10, 0, 0, 2);");
+        StackPane tile = Ui.skill(Icons.KANBAN, VARIANTS[Math.floorMod(board.getId(), VARIANTS.length)], 42);
+        Label role = Ui.label(isOwner ? "ВЛАДЕЛЕЦ" : "УЧАСТНИК", "chip", isOwner ? "accent" : null);
+        HBox top = new HBox(10, tile, Ui.hgrow(), role);
+        top.setAlignment(Pos.CENTER_LEFT);
 
-        Label title = new Label(board.getTitle());
-        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: " + textColor + ";");
-        title.setWrapText(true);
+        Label title = Ui.wrap(board.getTitle(), "board-title");
+        String descText = board.getDescription() != null && !board.getDescription().isBlank()
+                ? board.getDescription() : "Без описания";
+        Label desc = Ui.wrap(descText, "board-desc");
+        desc.setMaxHeight(38);
+        desc.setMinHeight(Region.USE_COMPUTED_SIZE);
 
-        Label desc = new Label(board.getDescription() != null ? board.getDescription() : "");
-        desc.setStyle("-fx-text-fill: " + descColor + "; -fx-font-size: 12px;");
-        desc.setWrapText(true);
-        desc.setMaxHeight(40);
+        VBox members = new VBox(6);
 
-        boolean isOwner = board.getUserId() == currentUser.getId();
+        Label date = Ui.label("СОЗДАНА " + board.getCreatedAt().format(DATE), "mono");
+        HBox actions = new HBox(2);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        if (isOwner) {
+            Button edit = Ui.iconButton(Icons.PENCIL, "Редактировать");
+            edit.setOnAction(e -> showEditBoardDialog(board));
+            Button invite = Ui.iconButton(Icons.USER_PLUS, "Пригласить участника");
+            invite.setOnAction(e -> showInviteDialog(user, board));
+            Button delete = Ui.iconButton(Icons.TRASH, "Удалить доску", "danger");
+            delete.setOnAction(e -> showDeleteConfirmation(board));
+            actions.getChildren().addAll(edit, invite, delete);
+        } else {
+            Button leave = Ui.iconButton(Icons.LOGOUT, "Покинуть доску", "danger");
+            leave.setOnAction(e -> showLeaveConfirmation(board, user));
+            actions.getChildren().add(leave);
+        }
+        HBox footer = new HBox(8, date, Ui.hgrow(), actions);
+        footer.setAlignment(Pos.CENTER_LEFT);
 
-        Label roleLabel = new Label(isOwner ? "Владелец" : "Участник");
-        if (isOwner) roleLabel.setStyle("-fx-text-fill: #4CAF50; -fx-font-weight: bold; -fx-font-size: 13px;");
-        else roleLabel.setStyle("-fx-text-fill: #2196F3; -fx-font-weight: bold; -fx-font-size: 13px;");
+        VBox card = new VBox(10, top, title, desc, members, Ui.vgrow(), new Separator(), footer);
+        card.getStyleClass().add("board-card");
+        card.setPrefWidth(300);
+        card.setMinHeight(250);
+        Ui.lift(card);
 
-        VBox membersSection = new VBox(5);
-        membersSection.setAlignment(Pos.CENTER_LEFT);
-
-        Runnable refreshAction = () -> {
-            if (card.getParent() instanceof FlowPane) refreshBoardsAsync((FlowPane) card.getParent(), currentUser, null);
-        };
-
-        CompletableFuture.supplyAsync(() -> {
-            User owner = UserDAO.getUserById(board.getUserId());
-            List<User> members = TrelloDAO.getBoardMembers(board.getId());
-            return new Pair<>(owner, members);
+        // Участники подгружаются в фоне
+        CompletableFuture.supplyAsync(() -> new Object[]{
+                UserDAO.getUserById(board.getUserId()), TrelloDAO.getBoardMembers(board.getId())
         }).thenAccept(data -> Platform.runLater(() -> {
-            User owner = data.getKey();
-            List<User> members = data.getValue();
+            User owner = (User) data[0];
+            @SuppressWarnings("unchecked") List<User> list = (List<User>) data[1];
 
             if (!isOwner && owner != null) {
-                HBox ownerBox = new HBox(5);
+                StackPane avatar = Ui.avatar(owner, 26);
+                avatar.getStyleClass().addAll("avatar-ring", "interactive");
+                avatar.setOnMouseClicked(e -> showUserInfoPopup(owner, avatar));
+                HBox ownerBox = new HBox(8, Ui.label("ВЛАДЕЛЕЦ", "mono"), avatar, Ui.label(owner.getDisplayName(), "small", "muted"));
                 ownerBox.setAlignment(Pos.CENTER_LEFT);
-                Label lbl = new Label("Владелец:");
-                lbl.setStyle("-fx-font-size: 10px; -fx-text-fill: #888;");
-                Node avatar = createAvatar(owner);
-                avatar.setOnMouseClicked(e -> { e.consume(); showUserInfoPopup(owner, avatar); });
-                avatar.setStyle("-fx-cursor: hand;");
-                ownerBox.getChildren().addAll(lbl, avatar);
-                membersSection.getChildren().add(ownerBox);
+                members.getChildren().add(ownerBox);
             }
-
-            if (!members.isEmpty()) {
-                HBox membersBox = new HBox(5);
+            if (!list.isEmpty()) {
+                HBox stack = new HBox(-8);
+                for (int i = 0; i < Math.min(list.size(), 4); i++) {
+                    StackPane a = Ui.avatar(list.get(i), 26);
+                    a.getStyleClass().add("avatar-ring");
+                    stack.getChildren().add(a);
+                }
+                if (list.size() > 4) stack.getChildren().add(Ui.label("+" + (list.size() - 4), "chip"));
+                stack.getStyleClass().add("interactive");
+                stack.setOnMouseClicked(e -> showMembersDialog(list, user, board));
+                HBox membersBox = new HBox(8, Ui.label("УЧАСТНИКИ", "mono"), stack);
                 membersBox.setAlignment(Pos.CENTER_LEFT);
-                Label lbl = new Label("Соучастники:");
-                lbl.setStyle("-fx-font-size: 10px; -fx-text-fill: #888;");
-                HBox avatarsStack = createMembersStack(members);
-                avatarsStack.setOnMouseClicked(e -> { e.consume(); showMembersDialog("Участники", members, currentUser, board, refreshAction); });
-                avatarsStack.setStyle("-fx-cursor: hand;");
-                membersBox.getChildren().addAll(lbl, avatarsStack);
-                membersSection.getChildren().add(membersBox);
+                membersBox.setStyle("-fx-cursor: hand;");
+                members.getChildren().add(membersBox);
             }
         }));
 
-        Region spacer = new Region();
-        VBox.setVgrow(spacer, Priority.ALWAYS);
-
-        Label date = new Label("Создана: " + board.getCreatedAt().format(formatter));
-        date.setStyle("-fx-font-size: 10px; -fx-text-fill: #999;");
-
-        HBox actions = new HBox(15);
-        actions.setAlignment(Pos.CENTER_LEFT);
-
-        String actionBtnColor = MenuScene.isDarkTheme ? MenuScene.Theme.TEXT_SEC_DARK : "black";
-
-        if (isOwner) {
-            Button editBtn = new Button("✏️");
-            editBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-text-fill: " + actionBtnColor + ";");
-            editBtn.setOnAction(e -> { e.consume(); showEditBoardDialog(currentUser, board, (FlowPane) card.getParent()); });
-
-            Button deleteBtn = new Button("🗑️");
-            deleteBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-text-fill: " + MenuScene.Theme.ERROR + ";");
-            deleteBtn.setOnAction(e -> { e.consume(); showDeleteConfirmation(board, (FlowPane) card.getParent(), currentUser); });
-
-            Separator sep = new Separator(javafx.geometry.Orientation.VERTICAL);
-            Button inviteBtn = new Button("👤+");
-            inviteBtn.setStyle("-fx-background-color: " + (MenuScene.isDarkTheme ? "#444" : "#e0e0e0") + "; -fx-text-fill: " + textColor + "; -fx-background-radius: 20; -fx-cursor: hand;");
-            inviteBtn.setOnAction(e -> { e.consume(); showInviteDialog(currentUser, board); });
-
-            actions.getChildren().addAll(editBtn, deleteBtn, sep, inviteBtn);
-        } else {
-            Button leaveBtn = new Button("🚪");
-            leaveBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-font-size: 16px; -fx-text-fill: " + MenuScene.Theme.ERROR + ";");
-            leaveBtn.setTooltip(new Tooltip("Покинуть доску"));
-            leaveBtn.setOnAction(e -> { e.consume(); showLeaveConfirmation(board, (FlowPane) card.getParent(), currentUser); });
-            actions.getChildren().add(leaveBtn);
-        }
-
-        card.getChildren().addAll(title, desc, roleLabel, membersSection, spacer, date, actions);
-
-        // === ИСПРАВЛЕНИЕ: ПЕРЕХОД В ДОСКУ С СОХРАНЕНИЕМ КОНТЕКСТА ===
         card.setOnMouseClicked(e -> {
-            if (!(e.getTarget() instanceof Button) && !(e.getTarget() instanceof Node && ((Node)e.getTarget()).getStyleClass().contains("avatar"))) {
-
-                // 1. Создаем действие "Открыть эту доску"
-                Runnable openBoardAction = () -> MenuScene.setContent(TrelloBoardScene.createBoardView(currentUser, board));
-
-                // 2. Говорим MenuScene: "Если сменят тему, выполни это действие"
-                MenuScene.setContentReloader(openBoardAction);
-
-                // 3. Открываем доску
-                openBoardAction.run();
-            }
+            if (e.getButton() != MouseButton.PRIMARY || Ui.isInteractive(e.getTarget(), card)) return;
+            MenuScene.setContent(TrelloBoardScene.createBoardView(user, board));
         });
-
-        card.setOnMouseEntered(e -> {
-            String hoverBg = MenuScene.isDarkTheme ? "#2c2c2c" : "#f9f9f9";
-            card.setStyle("-fx-background-color: " + hoverBg + "; -fx-background-radius: 10; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 15, 0, 0, 5); -fx-cursor: hand;");
-        });
-        card.setOnMouseExited(e -> {
-            card.setStyle("-fx-background-color: " + cardBg + "; -fx-background-radius: 10; -fx-padding: 20; -fx-effect: dropshadow(gaussian, " + shadow + ", 10, 0, 0, 2);");
-        });
-
         return card;
     }
 
-    // ... (Остальной код без изменений: хелперы аватарок, попапы, диалоги и т.д.)
-    private static Node createAvatar(User user) {
-        double size = 24; Circle circle = new Circle(size / 2);
-        if (user.getAvatarPath() != null && !user.getAvatarPath().isEmpty()) {
-            try { circle.setFill(new ImagePattern(new Image(user.getAvatarPath()))); return circle; } catch (Exception e) {}
-        }
-        circle.setFill(Color.web("#2196F3"));
-        Label letter = new Label(user.getDisplayName().substring(0, 1).toUpperCase());
-        letter.setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 10px;");
-        StackPane stack = new StackPane(circle, letter); stack.getStyleClass().add("avatar"); return stack;
+    // ---------------------------------------------------- board dialogs
+
+    private static void showCreateBoardDialog(User user) {
+        boardForm("Новая доска", "Создать", "", "").ifPresent(v -> {
+            currentSpinner.setVisible(true);
+            CompletableFuture.runAsync(() -> TrelloDAO.createBoard(v[0], v[1], user.getId()))
+                    .thenRun(() -> Platform.runLater(TrelloHomeScene::refreshBoardsAsync));
+        });
     }
 
-    private static Node createLargeAvatar(User user) {
-        double size = 60;
-        Circle circle = new Circle(size / 2);
-        if (user.getAvatarPath() != null && !user.getAvatarPath().isEmpty()) {
-            try { circle.setFill(new ImagePattern(new Image(user.getAvatarPath()))); return circle; } catch (Exception e) {}
-        }
-        circle.setFill(Color.web("#2196F3"));
-        Label letter = new Label(user.getDisplayName().substring(0, 1).toUpperCase());
-        letter.setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 24px;");
-        StackPane stack = new StackPane(circle, letter);
-        return stack;
+    private static void showEditBoardDialog(Board board) {
+        boardForm("Редактировать доску", "Сохранить", board.getTitle(), board.getDescription()).ifPresent(v ->
+                CompletableFuture.runAsync(() -> TrelloDAO.updateBoard(board.getId(), v[0], v[1]))
+                        .thenRun(() -> Platform.runLater(TrelloHomeScene::refreshBoardsAsync)));
     }
 
-    private static HBox createMembersStack(List<User> members) {
-        HBox stack = new HBox(2); int limit = 3;
-        for (int i = 0; i < Math.min(members.size(), limit); i++) stack.getChildren().add(createAvatar(members.get(i)));
-        if (members.size() > limit) { Circle c = new Circle(12); c.setFill(Color.LIGHTGRAY); Label l = new Label("+" + (members.size()-limit)); l.setStyle("-fx-font-size: 9px; font-weight: bold;"); StackPane s = new StackPane(c, l); s.getStyleClass().add("avatar"); stack.getChildren().add(s); }
-        return stack;
+    private static java.util.Optional<String[]> boardForm(String header, String okText, String title0, String desc0) {
+        TextField title = new TextField(title0);
+        title.setPromptText("Например, «Курсовой проект»");
+        TextArea desc = new TextArea(desc0 == null ? "" : desc0);
+        desc.setPromptText("Коротко: о чём эта доска");
+        desc.setPrefRowCount(3);
+        desc.setWrapText(true);
+        VBox form = new VBox(14, Ui.field("Название", title, null), Ui.field("Описание", desc, "Необязательно"));
+        boolean ok = Ui.form(header, okText, form,
+                Bindings.createBooleanBinding(() -> title.getText().trim().isEmpty(), title.textProperty()),
+                title, MenuScene.getStage());
+        return ok ? java.util.Optional.of(new String[]{title.getText().trim(), desc.getText().trim()})
+                : java.util.Optional.empty();
     }
+
+    private static void showDeleteConfirmation(Board board) {
+        if (!Ui.confirm("Удалить доску «" + board.getTitle() + "»?",
+                "Списки, карточки и приглашения этой доски удалятся без возможности восстановления.",
+                "Удалить", true, MenuScene.getStage())) return;
+        CompletableFuture.runAsync(() -> TrelloDAO.deleteBoard(board.getId()))
+                .thenRun(() -> Platform.runLater(TrelloHomeScene::refreshBoardsAsync));
+    }
+
+    private static void showLeaveConfirmation(Board board, User user) {
+        if (!Ui.confirm("Покинуть доску «" + board.getTitle() + "»?",
+                "Владелец получит уведомление. Вернуться можно будет только по новому приглашению.",
+                "Покинуть", true, MenuScene.getStage())) return;
+        CompletableFuture.runAsync(() -> TrelloDAO.leaveBoard(board.getId(), user.getId(), user.getDisplayName()))
+                .thenRun(() -> Platform.runLater(TrelloHomeScene::refreshBoardsAsync));
+    }
+
+    // ---------------------------------------------------------- people
 
     private static void showUserInfoPopup(User u, Node anchor) {
-        Popup popup = new Popup();
-        VBox content = new VBox(10);
-        content.setAlignment(Pos.CENTER);
+        VBox content = new VBox(12);
+        content.getStyleClass().addAll("popup-card", "themed");
+        content.setAlignment(Pos.TOP_CENTER);
+        content.setPrefWidth(260);
+        Theme.apply(content);
 
-        String bg = MenuScene.isDarkTheme ? "#333" : "white";
-        String textColor = MenuScene.getTextStyle();
+        VBox who = new VBox(3, Ui.label(u.getDisplayName(), "h3"), Ui.label("@" + u.getUsername(), "mono"));
+        who.setAlignment(Pos.CENTER);
+        content.getChildren().addAll(Ui.avatar(u, 64), who, new Separator());
 
-        content.setStyle("-fx-background-color: " + bg + "; -fx-padding: 20; -fx-background-radius: 10; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 2); -fx-border-color: #777; -fx-border-radius: 10;");
-
-        Node avatar = createLargeAvatar(u);
-
-        Label name = new Label(u.getDisplayName());
-        name.setStyle("-fx-font-weight: bold; -fx-font-size: 18px; -fx-text-fill: " + textColor + ";");
-
-        content.getChildren().addAll(avatar, name, new Separator());
-
-        VBox details = new VBox(5);
-        details.setAlignment(Pos.CENTER_LEFT);
-
-        if (u.getEmail() != null) {
-            Label l = new Label("📧 " + u.getEmail());
-            l.setStyle("-fx-text-fill: " + textColor + ";");
-            details.getChildren().add(l);
-        }
-        if (u.getPhone() != null && !u.getPhone().isEmpty()) {
-            Label l = new Label("📞 " + u.getPhone());
-            l.setStyle("-fx-text-fill: " + textColor + ";");
-            details.getChildren().add(l);
-        }
-
+        VBox details = new VBox(8);
+        if (u.getEmail() != null) details.getChildren().add(infoLine(Icons.MAIL, u.getEmail()));
+        if (u.getPhone() != null && !u.getPhone().isBlank()) details.getChildren().add(infoLine(Icons.PHONE, u.getPhone()));
+        if (u.getBirthday() != null && !u.getBirthday().isBlank()) details.getChildren().add(infoLine(Icons.CALENDAR, u.getBirthday()));
         content.getChildren().add(details);
 
-        if (u.getBirthday() != null && !u.getBirthday().isEmpty()) {
-            content.getChildren().add(new Separator());
-            Label bd = new Label("🎂 " + u.getBirthday());
-            bd.setStyle("-fx-text-fill: " + (MenuScene.isDarkTheme ? "#aaa" : "#555") + "; -fx-font-weight: bold;");
-            content.getChildren().add(bd);
-        }
-
+        Popup popup = new Popup();
         popup.getContent().add(content);
         popup.setAutoHide(true);
-
-        Point2D point = anchor.localToScreen(0, 0);
-        popup.show(anchor, point.getX() + anchor.getBoundsInLocal().getWidth() + 5, point.getY());
+        Point2D p = anchor.localToScreen(0, 0);
+        popup.show(anchor, p.getX() + anchor.getBoundsInLocal().getWidth() + 8, p.getY() - 10);
     }
 
-    private static void showMembersDialog(String title, List<User> users, User currentUser, Board board, Runnable onUpdate) {
-        Stage dialog = new Stage(); dialog.initModality(Modality.APPLICATION_MODAL); dialog.initOwner(MenuScene.getStage()); dialog.setTitle(title);
+    private static HBox infoLine(String icon, String text) {
+        HBox line = new HBox(10, Icons.of(icon, 16), Ui.label(text, "muted"));
+        line.setAlignment(Pos.CENTER_LEFT);
+        return line;
+    }
 
-        VBox root = new VBox(10); root.setPadding(new Insets(15));
+    private static void showMembersDialog(List<User> users, User me, Board board) {
+        Stage dialog = modal("Участники доски");
+        boolean isOwner = me.getId() == board.getUserId();
 
-        String bg = MenuScene.isDarkTheme ? MenuScene.Theme.BG_DARK : "white";
-        String textColor = MenuScene.getTextStyle();
-        root.setStyle("-fx-background-color: " + bg + ";");
-
-        boolean isOwner = (currentUser.getId() == board.getUserId());
-
+        VBox list = new VBox(8);
         for (User u : users) {
-            HBox row = new HBox(10); row.setAlignment(Pos.CENTER_LEFT);
-            row.setStyle("-fx-padding: 5; -fx-background-radius: 5; -fx-cursor: hand;");
-
-            String hoverColor = MenuScene.isDarkTheme ? "#333" : "#f0f0f0";
-            row.setOnMouseEntered(e -> row.setStyle("-fx-background-color: " + hoverColor + "; -fx-padding: 5; -fx-background-radius: 5; -fx-cursor: hand;"));
-            row.setOnMouseExited(e -> row.setStyle("-fx-background-color: transparent; -fx-padding: 5; -fx-background-radius: 5; -fx-cursor: hand;"));
-
-            Node avatar = createAvatar(u);
-            VBox info = new VBox(2);
-            String displayName = u.getDisplayName();
-            if (u.getId() == currentUser.getId()) displayName += " (Вы)";
-            Label name = new Label(displayName); name.setStyle("-fx-font-weight: bold; -fx-text-fill: " + textColor + ";");
-            Label email = new Label(u.getEmail()); email.setStyle("-fx-font-size: 10px; -fx-text-fill: gray;");
-            info.getChildren().addAll(name, email);
-            Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
-            row.getChildren().addAll(avatar, info, spacer);
-
-            if (isOwner && u.getId() != currentUser.getId() && !title.equals("Владелец")) {
-                Button removeBtn = new Button("🗑"); removeBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #e74c3c;");
-                removeBtn.setOnAction(e -> { e.consume(); CompletableFuture.runAsync(() -> TrelloDAO.removeBoardMember(board.getId(), u.getId())).thenRun(() -> Platform.runLater(() -> { root.getChildren().remove(row); if (onUpdate != null) onUpdate.run(); })); });
-                row.getChildren().add(removeBtn);
+            String name = u.getDisplayName() + (u.getId() == me.getId() ? " (вы)" : "");
+            VBox text = new VBox(1, Ui.label(name, "semi"), Ui.label(u.getEmail(), "muted", "small"));
+            HBox row = new HBox(12, Ui.avatar(u, 36), text, Ui.hgrow());
+            row.getStyleClass().addAll("row", "static");
+            row.setPadding(new Insets(10, 10, 10, 12));
+            if (isOwner && u.getId() != me.getId()) {
+                Button remove = Ui.iconButton(Icons.TRASH, "Исключить из доски", "danger");
+                remove.setOnAction(e -> CompletableFuture.runAsync(() -> TrelloDAO.removeBoardMember(board.getId(), u.getId()))
+                        .thenRun(() -> Platform.runLater(() -> {
+                            list.getChildren().remove(row);
+                            refreshBoardsAsync();
+                        })));
+                row.getChildren().add(remove);
             }
-
-            row.setOnMouseClicked(e -> {
-                if (u.getId() == currentUser.getId()) return;
-                showUserInfoPopup(u, row);
+            if (u.getId() != me.getId()) row.setOnMouseClicked(e -> {
+                if (!Ui.isInteractive(e.getTarget(), row)) showUserInfoPopup(u, row);
             });
-
-            root.getChildren().add(row);
+            list.getChildren().add(row);
         }
-        ScrollPane sc = new ScrollPane(root); sc.setFitToWidth(true);
-        sc.setStyle("-fx-background: " + bg + "; -fx-background-color: transparent;");
-        dialog.setScene(new Scene(sc, 350, 300)); dialog.show();
+
+        ScrollPane scroll = new ScrollPane(list);
+        scroll.setFitToWidth(true);
+        VBox root = new VBox(16, new VBox(4, Ui.label("Участники", "h2"),
+                Ui.label("Доска «" + board.getTitle() + "» · " + users.size() + " чел.", "muted")), scroll);
+        root.getStyleClass().add("dialog-root");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        dialog.setScene(Theme.scene(root, 420, 420));
+        dialog.show();
     }
 
-    private static void showLeaveConfirmation(Board board, FlowPane grid, User user) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION); alert.setTitle("Покинуть"); alert.setHeaderText("Выйти из доски?");
-        styleDialog(alert);
-        alert.showAndWait().ifPresent(r -> { if (r == ButtonType.OK) CompletableFuture.runAsync(() -> TrelloDAO.leaveBoard(board.getId(), user.getId(), user.getDisplayName())).thenRun(() -> Platform.runLater(() -> refreshBoardsAsync(grid, user, null))); });
-    }
-
-    private static void showDeleteConfirmation(Board board, FlowPane grid, User user) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION); alert.setTitle("Удалить"); alert.setHeaderText("Удалить доску?");
-        styleDialog(alert);
-        alert.showAndWait().ifPresent(r -> { if (r == ButtonType.OK) CompletableFuture.runAsync(() -> TrelloDAO.deleteBoard(board.getId())).thenRun(() -> refreshBoardsAsync(grid, user, null)); });
-    }
-
-    private static void styleDialog(Dialog<?> dialog) {
-        if (MenuScene.isDarkTheme) {
-            DialogPane pane = dialog.getDialogPane();
-            pane.setStyle("-fx-background-color: " + MenuScene.Theme.HOVER_DARK + ";");
-            pane.lookup(".content.label").setStyle("-fx-text-fill: white;");
-            pane.lookup(".header-panel").setStyle("-fx-background-color: " + MenuScene.Theme.SIDEBAR_DARK + "; -fx-text-fill: white;");
-        }
-    }
+    // ---------------------------------------------------- notifications
 
     private static void checkNotificationsAsync(int userId) {
-        CompletableFuture.supplyAsync(() -> {
-            List<TrelloDAO.Invitation> i = TrelloDAO.getPendingInvitations(userId);
-            List<TrelloDAO.Notification> n = TrelloDAO.getUnreadNotifications(userId);
-            return i.size() + n.size();
-        }).thenAccept(c -> Platform.runLater(() -> { notificationBadge.setText(String.valueOf(c)); notificationBadge.setVisible(c > 0); }));
+        Label badge = notificationBadge;
+        CompletableFuture.supplyAsync(() ->
+                TrelloDAO.getPendingInvitations(userId).size() + TrelloDAO.getUnreadNotifications(userId).size()
+        ).thenAccept(c -> Platform.runLater(() -> {
+            badge.setText(String.valueOf(c));
+            badge.setVisible(c > 0);
+        }));
     }
 
-    private static void showNotificationsDialog(User user, BorderPane rootLayout) {
-        Stage dialog = new Stage(); dialog.initModality(Modality.APPLICATION_MODAL); dialog.initOwner(MenuScene.getStage()); dialog.setTitle("Центр уведомлений");
-        BorderPane dialogLayout = new BorderPane(); dialogLayout.setPrefSize(600, 450);
+    private record Item(Object data, LocalDateTime date, String type) { }
 
-        String sbBg = MenuScene.isDarkTheme ? MenuScene.Theme.SIDEBAR_DARK : "#f0f2f5";
-        String contentBg = MenuScene.isDarkTheme ? MenuScene.Theme.BG_DARK : "white";
-        String textColor = MenuScene.getTextStyle();
+    private static void showNotificationsDialog(User user) {
+        Stage dialog = modal("Центр уведомлений");
 
-        VBox sidebar = new VBox(10); sidebar.setPadding(new Insets(15));
-        sidebar.setStyle("-fx-background-color: " + sbBg + "; -fx-border-color: #ddd; -fx-border-width: 0 1 0 0;"); sidebar.setPrefWidth(150);
+        ToggleButton incoming = Ui.seg("Входящие", Icons.INBOX);
+        ToggleButton outgoing = Ui.seg("Исходящие", Icons.SEND);
+        ToggleButton archive = Ui.seg("Архив", null);
+        HBox tabs = Ui.segmented(incoming, outgoing, archive);
+        incoming.setSelected(true);
 
-        ToggleButton incomingBtn = new ToggleButton("Входящие"); incomingBtn.setMaxWidth(Double.MAX_VALUE);
-        ToggleButton outgoingBtn = new ToggleButton("Исходящие"); outgoingBtn.setMaxWidth(Double.MAX_VALUE);
-        ToggleButton archiveBtn = new ToggleButton("Архив"); archiveBtn.setMaxWidth(Double.MAX_VALUE);
-        ToggleGroup group = new ToggleGroup(); incomingBtn.setToggleGroup(group); outgoingBtn.setToggleGroup(group); archiveBtn.setToggleGroup(group); incomingBtn.setSelected(true);
-        sidebar.getChildren().addAll(incomingBtn, outgoingBtn, archiveBtn); dialogLayout.setLeft(sidebar);
+        ToggleButton newest = Ui.seg("Сначала новые", null);
+        ToggleButton oldest = Ui.seg("Старые", null);
+        HBox sort = Ui.segmented(newest, oldest);
+        newest.setSelected(true);
 
-        VBox contentArea = new VBox(10); contentArea.setPadding(new Insets(15));
-        contentArea.setStyle("-fx-background-color: " + contentBg + ";");
+        HBox titleRow = new HBox(12, Ui.label("Уведомления", "h2"), Ui.hgrow(), sort);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
 
-        HBox header = new HBox(10); header.setAlignment(Pos.CENTER_LEFT);
-        Label sectionTitle = new Label("Входящие"); sectionTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: " + textColor + ";");
+        VBox list = new VBox(10);
+        ScrollPane scroll = new ScrollPane(list);
+        scroll.setFitToWidth(true);
+        BorderPane.setMargin(scroll, new Insets(18, 0, 0, 0));
 
-        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
-        MenuButton sortBtn = new MenuButton("Сначала новые"); MenuItem newest = new MenuItem("Сначала новые"); MenuItem oldest = new MenuItem("Сначала старые");
-        sortBtn.getItems().addAll(newest, oldest); header.getChildren().addAll(sectionTitle, sp, sortBtn); contentArea.getChildren().add(header);
-        VBox listContainer = new VBox(10); ScrollPane scrollPane = new ScrollPane(listContainer); scrollPane.setFitToWidth(true); scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;"); VBox.setVgrow(scrollPane, Priority.ALWAYS); contentArea.getChildren().add(scrollPane);
-        dialogLayout.setCenter(contentArea);
-
-        class DisplayItem { Object data; LocalDateTime date; String type; DisplayItem(Object d, LocalDateTime t, String ty) { data=d; date=t; type=ty; } }
-        final List<DisplayItem>[] currentItems = new List[1];
-
+        List<Item> current = new ArrayList<>();
         Runnable render = () -> {
-            listContainer.getChildren().clear();
-            if (currentItems[0] == null || currentItems[0].isEmpty()) {
-                Label l = new Label("Список пуст");
-                l.setStyle("-fx-text-fill: " + textColor + ";");
-                listContainer.getChildren().add(l);
+            list.getChildren().clear();
+            if (current.isEmpty()) {
+                VBox empty = new VBox(10, Ui.skill(Icons.BELL, "skill-slate", 44), Ui.label("Здесь пока пусто", "muted"));
+                empty.setAlignment(Pos.CENTER);
+                empty.setPadding(new Insets(40));
+                list.getChildren().add(empty);
                 return;
             }
-            if (sortBtn.getText().equals("Сначала новые")) currentItems[0].sort(Comparator.comparing(i -> i.date, Comparator.reverseOrder())); else currentItems[0].sort(Comparator.comparing(i -> i.date));
-            for (DisplayItem item : currentItems[0]) {
-                if (item.type.equals("IN_INVITE")) listContainer.getChildren().add(createIncomingInviteRow((TrelloDAO.Invitation)item.data, user, listContainer, rootLayout));
-                else if (item.type.equals("IN_NOTIF")) listContainer.getChildren().add(createNotificationRow((TrelloDAO.Notification)item.data, user, listContainer));
-                else if (item.type.equals("OUT_INVITE")) listContainer.getChildren().add(createOutgoingInviteRow((TrelloDAO.Invitation)item.data));
-                else if (item.type.equals("ARCHIVED_INVITE")) listContainer.getChildren().add(createArchivedInviteRow((TrelloDAO.Invitation)item.data));
-                else if (item.type.equals("ARCHIVED_NOTIF")) listContainer.getChildren().add(createArchivedNotificationRow((TrelloDAO.Notification)item.data));
+            Comparator<Item> byDate = Comparator.comparing(Item::date);
+            current.sort(newest.isSelected() ? byDate.reversed() : byDate);
+            for (Item item : current) {
+                list.getChildren().add(switch (item.type()) {
+                    case "IN_INVITE" -> incomingInviteRow((TrelloDAO.Invitation) item.data(), user, list);
+                    case "IN_NOTIF" -> notificationRow((TrelloDAO.Notification) item.data(), user, list);
+                    case "OUT_INVITE" -> inviteStatusRow((TrelloDAO.Invitation) item.data(), "Кому: ", Icons.SEND, "skill-purple", false);
+                    case "ARCHIVED_INVITE" -> inviteStatusRow((TrelloDAO.Invitation) item.data(), "От: ", Icons.USER_PLUS, "skill-slate", true);
+                    default -> archivedNotificationRow((TrelloDAO.Notification) item.data());
+                });
             }
         };
-        Runnable loadIncoming = () -> { sectionTitle.setText("Входящие"); CompletableFuture.supplyAsync(() -> { List<DisplayItem> l = new ArrayList<>(); for(TrelloDAO.Invitation i : TrelloDAO.getPendingInvitations(user.getId())) l.add(new DisplayItem(i, i.getCreatedAt(), "IN_INVITE")); for(TrelloDAO.Notification n : TrelloDAO.getUnreadNotifications(user.getId())) l.add(new DisplayItem(n, n.getCreatedAt(), "IN_NOTIF")); return l; }).thenAccept(l -> Platform.runLater(() -> { currentItems[0] = l; render.run(); })); };
-        Runnable loadOutgoing = () -> { sectionTitle.setText("Исходящие"); CompletableFuture.supplyAsync(() -> { List<DisplayItem> l = new ArrayList<>(); for(TrelloDAO.Invitation i : TrelloDAO.getOutgoingInvitations(user.getId())) l.add(new DisplayItem(i, i.getCreatedAt(), "OUT_INVITE")); return l; }).thenAccept(l -> Platform.runLater(() -> { currentItems[0] = l; render.run(); })); };
-        Runnable loadArchive = () -> { sectionTitle.setText("Архив"); CompletableFuture.supplyAsync(() -> { List<DisplayItem> l = new ArrayList<>(); for(TrelloDAO.Invitation i : TrelloDAO.getArchivedInvitations(user.getId())) l.add(new DisplayItem(i, i.getCreatedAt(), "ARCHIVED_INVITE")); for(TrelloDAO.Notification n : TrelloDAO.getReadNotifications(user.getId())) l.add(new DisplayItem(n, n.getCreatedAt(), "ARCHIVED_NOTIF")); return l; }).thenAccept(l -> Platform.runLater(() -> { currentItems[0] = l; render.run(); })); };
 
-        incomingBtn.setOnAction(e -> loadIncoming.run()); outgoingBtn.setOnAction(e -> loadOutgoing.run()); archiveBtn.setOnAction(e -> loadArchive.run());
-        newest.setOnAction(e -> { sortBtn.setText("Сначала новые"); render.run(); }); oldest.setOnAction(e -> { sortBtn.setText("Сначала старые"); render.run(); });
-        loadIncoming.run();
-        dialog.setScene(new Scene(dialogLayout)); dialog.show();
-    }
+        Runnable load = () -> CompletableFuture.supplyAsync(() -> {
+            List<Item> items = new ArrayList<>();
+            if (incoming.isSelected()) {
+                for (TrelloDAO.Invitation i : TrelloDAO.getPendingInvitations(user.getId())) items.add(new Item(i, i.getCreatedAt(), "IN_INVITE"));
+                for (TrelloDAO.Notification n : TrelloDAO.getUnreadNotifications(user.getId())) items.add(new Item(n, n.getCreatedAt(), "IN_NOTIF"));
+            } else if (outgoing.isSelected()) {
+                for (TrelloDAO.Invitation i : TrelloDAO.getOutgoingInvitations(user.getId())) items.add(new Item(i, i.getCreatedAt(), "OUT_INVITE"));
+            } else {
+                for (TrelloDAO.Invitation i : TrelloDAO.getArchivedInvitations(user.getId())) items.add(new Item(i, i.getCreatedAt(), "ARCHIVED_INVITE"));
+                for (TrelloDAO.Notification n : TrelloDAO.getReadNotifications(user.getId())) items.add(new Item(n, n.getCreatedAt(), "ARCHIVED_NOTIF"));
+            }
+            return items;
+        }).thenAccept(items -> Platform.runLater(() -> {
+            current.clear();
+            current.addAll(items);
+            render.run();
+        }));
 
-    private static HBox createIncomingInviteRow(TrelloDAO.Invitation inv, User user, VBox container, BorderPane layout) {
-        String bg = MenuScene.isDarkTheme ? "#1e3a5a" : "#e3f2fd";
-        String textColor = MenuScene.getTextStyle();
-
-        HBox row = new HBox(10); row.setStyle("-fx-background-color: " + bg + "; -fx-padding: 10; -fx-background-radius: 5;"); row.setAlignment(Pos.CENTER_LEFT);
-        VBox text = new VBox(2);
-        Label l1 = new Label(inv.getPersonName() + " приглашает:"); l1.setStyle("-fx-text-fill: " + textColor + ";");
-        Label l2 = new Label(inv.getBoardName()); l2.setStyle("-fx-font-weight: bold; -fx-text-fill: " + textColor + ";");
-        text.getChildren().addAll(l1, l2);
-
-        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
-        Button yes = new Button("✔"); yes.setStyle("-fx-text-fill: white; -fx-background-color: #4CAF50;");
-        Button no = new Button("✕"); no.setStyle("-fx-text-fill: white; -fx-background-color: #F44336;");
-        yes.setOnAction(e -> CompletableFuture.runAsync(() -> TrelloDAO.acceptInvitation(inv.getId())).thenRun(() -> Platform.runLater(() -> { container.getChildren().remove(row); checkNotificationsAsync(user.getId()); if(layout.getCenter() instanceof StackPane s && !s.getChildren().isEmpty() && s.getChildren().get(0) instanceof ScrollPane sc && sc.getContent() instanceof FlowPane fp) refreshBoardsAsync(fp, user, null); })));
-        no.setOnAction(e -> CompletableFuture.runAsync(() -> TrelloDAO.declineInvitation(inv.getId())).thenRun(() -> Platform.runLater(() -> { container.getChildren().remove(row); checkNotificationsAsync(user.getId()); })));
-        VBox right = new VBox(5); right.setAlignment(Pos.CENTER_RIGHT); right.getChildren().addAll(new HBox(5, yes, no), new Label(inv.getCreatedAt().format(DateTimeFormatter.ofPattern("dd.MM HH:mm"))));
-        row.getChildren().addAll(text, sp, right); return row;
-    }
-
-    private static HBox createNotificationRow(TrelloDAO.Notification notif, User user, VBox container) {
-        String bg = MenuScene.isDarkTheme ? "#4a3b2a" : "#fff3e0";
-        String textColor = MenuScene.getTextStyle();
-
-        HBox row = new HBox(10); row.setStyle("-fx-background-color: " + bg + "; -fx-padding: 10; -fx-background-radius: 5;"); row.setAlignment(Pos.CENTER_LEFT);
-        Label msg = new Label(notif.getMessage()); msg.setWrapText(true); msg.setMaxWidth(300); msg.setStyle("-fx-text-fill: " + textColor + ";");
-        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
-        Button ok = new Button("OK"); ok.setOnAction(e -> CompletableFuture.runAsync(() -> TrelloDAO.markNotificationAsRead(notif.getId())).thenRun(() -> Platform.runLater(() -> { container.getChildren().remove(row); checkNotificationsAsync(user.getId()); })));
-        VBox right = new VBox(5); right.setAlignment(Pos.CENTER_RIGHT); right.getChildren().addAll(ok, new Label(notif.getCreatedAt().format(DateTimeFormatter.ofPattern("dd.MM HH:mm"))));
-        row.getChildren().addAll(msg, sp, right); return row;
-    }
-
-    private static HBox createOutgoingInviteRow(TrelloDAO.Invitation inv) {
-        String bg = MenuScene.isDarkTheme ? "#333" : "#f5f5f5";
-        String textColor = MenuScene.getTextStyle();
-
-        HBox row = new HBox(10); row.setStyle("-fx-background-color: " + bg + "; -fx-padding: 10; -fx-background-radius: 5;"); row.setAlignment(Pos.CENTER_LEFT);
-        VBox text = new VBox(2);
-        Label l1 = new Label("Кому: " + inv.getPersonName()); l1.setStyle("-fx-text-fill: " + textColor + ";");
-        Label l2 = new Label("Доска: " + inv.getBoardName()); l2.setStyle("-fx-text-fill: " + textColor + ";");
-        text.getChildren().addAll(l1, l2);
-        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
-        Label status = new Label(inv.getStatus()); if(inv.getStatus().equals("ACCEPTED")) status.setTextFill(Color.GREEN); else if(inv.getStatus().equals("DECLINED")) status.setTextFill(Color.RED); else status.setTextFill(Color.ORANGE);
-        VBox right = new VBox(5); right.setAlignment(Pos.CENTER_RIGHT); right.getChildren().addAll(status, new Label(inv.getCreatedAt().format(DateTimeFormatter.ofPattern("dd.MM HH:mm"))));
-        row.getChildren().addAll(text, sp, right); return row;
-    }
-
-    private static HBox createArchivedInviteRow(TrelloDAO.Invitation inv) { HBox row = createOutgoingInviteRow(inv); ((VBox)row.getChildren().get(0)).getChildren().set(0, new Label("От: " + inv.getPersonName())); row.setStyle(row.getStyle() + " -fx-opacity: 0.7;"); return row; }
-
-    private static HBox createArchivedNotificationRow(TrelloDAO.Notification notif) {
-        String bg = MenuScene.isDarkTheme ? "#333" : "#eeeeee";
-        String textColor = MenuScene.getTextStyle();
-        HBox row = new HBox(10); row.setStyle("-fx-background-color: " + bg + "; -fx-padding: 10; -fx-background-radius: 5; -fx-opacity: 0.7;"); row.setAlignment(Pos.CENTER_LEFT);
-        Label msg = new Label(notif.getMessage()); msg.setWrapText(true); msg.setStyle("-fx-text-fill: " + textColor + ";");
-        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS); row.getChildren().addAll(msg, sp, new Label(notif.getCreatedAt().format(DateTimeFormatter.ofPattern("dd.MM HH:mm")))); return row;
-    }
-
-    private static void showCreateBoardDialog(User user, FlowPane grid, ProgressIndicator spinner) {
-        TextInputDialog d = new TextInputDialog(); d.setTitle("Создать"); d.setHeaderText("Новая доска");
-        styleDialog(d);
-        d.showAndWait().ifPresent(n -> { if(!n.trim().isEmpty()) { if(spinner!=null)spinner.setVisible(true); CompletableFuture.runAsync(() -> TrelloDAO.createBoard(n, "", user.getId())).thenRun(() -> refreshBoardsAsync(grid, user, spinner)); }});
-    }
-
-    private static void showEditBoardDialog(User user, Board board, FlowPane grid) {
-        TextInputDialog d = new TextInputDialog(board.getTitle()); d.setTitle("Редактировать");
-        styleDialog(d);
-        d.showAndWait().ifPresent(n -> CompletableFuture.runAsync(() -> TrelloDAO.updateBoard(board.getId(), n, board.getDescription())).thenRun(() -> refreshBoardsAsync(grid, user, null)));
-    }
-
-    private static void showInviteDialog(User u, Board b) {
-        Stage d = new Stage(); d.initModality(Modality.APPLICATION_MODAL); d.initOwner(MenuScene.getStage());
-        TabPane tp = new TabPane(); tp.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-
-        if (MenuScene.isDarkTheme) {
-            tp.setStyle("-fx-background-color: " + MenuScene.Theme.BG_DARK + ";");
+        for (ToggleButton t : new ToggleButton[]{incoming, outgoing, archive}) {
+            t.setOnAction(e -> load.run());
         }
+        newest.setOnAction(e -> render.run());
+        oldest.setOnAction(e -> render.run());
 
-        tp.getTabs().addAll(createInviteTab("Ник", "Username:", "username", u, b), createInviteTab("Email", "Email:", "email", u, b), createInviteTab("Телефон", "Телефон:", "phone", u, b));
-        d.setScene(new Scene(tp, 400, 250)); d.show();
+        BorderPane root = new BorderPane(scroll);
+        root.setTop(new VBox(16, titleRow, tabs));
+        root.getStyleClass().add("dialog-root");
+        dialog.setScene(Theme.scene(root, 680, 520));
+        load.run();
+        dialog.show();
+    }
+
+    private static HBox noticeRow(String icon, String variant, Node text, Node right) {
+        HBox row = new HBox(14, Ui.skill(icon, variant, 38), text, Ui.hgrow(), right);
+        row.getStyleClass().addAll("row", "static");
+        HBox.setHgrow(text, Priority.SOMETIMES);
+        return row;
+    }
+
+    private static VBox twoLines(String first, String second) {
+        VBox box = new VBox(2, Ui.wrap(first, "semi"), Ui.wrap(second, "muted", "small"));
+        box.setMinWidth(0);
+        return box;
+    }
+
+    private static VBox rightSide(Node top, LocalDateTime when) {
+        VBox box = new VBox(6, top, Ui.label(when.format(TIME), "mono"));
+        box.setAlignment(Pos.CENTER_RIGHT);
+        box.setMinWidth(Region.USE_PREF_SIZE);
+        return box;
+    }
+
+    private static HBox incomingInviteRow(TrelloDAO.Invitation inv, User user, VBox container) {
+        Button accept = Ui.primary("Принять", Icons.CHECK);
+        accept.getStyleClass().add("btn-sm");
+        Button decline = Ui.ghost("Отклонить", null);
+        decline.getStyleClass().add("btn-sm");
+        HBox buttons = new HBox(6, decline, accept);
+        HBox row = noticeRow(Icons.USER_PLUS, "skill-sky",
+                twoLines(inv.getPersonName() + " приглашает вас", "Доска «" + inv.getBoardName() + "»"),
+                rightSide(buttons, inv.getCreatedAt()));
+
+        accept.setOnAction(e -> CompletableFuture.runAsync(() -> TrelloDAO.acceptInvitation(inv.getId()))
+                .thenRun(() -> Platform.runLater(() -> {
+                    container.getChildren().remove(row);
+                    checkNotificationsAsync(user.getId());
+                    refreshBoardsAsync();
+                })));
+        decline.setOnAction(e -> CompletableFuture.runAsync(() -> TrelloDAO.declineInvitation(inv.getId()))
+                .thenRun(() -> Platform.runLater(() -> {
+                    container.getChildren().remove(row);
+                    checkNotificationsAsync(user.getId());
+                })));
+        return row;
+    }
+
+    private static HBox notificationRow(TrelloDAO.Notification notif, User user, VBox container) {
+        Button read = Ui.ghost("Прочитано", Icons.CHECK);
+        read.getStyleClass().add("btn-sm");
+        HBox row = noticeRow(Icons.BELL, "skill-amber", Ui.wrap(notif.getMessage(), "semi"),
+                rightSide(read, notif.getCreatedAt()));
+        read.setOnAction(e -> CompletableFuture.runAsync(() -> TrelloDAO.markNotificationAsRead(notif.getId()))
+                .thenRun(() -> Platform.runLater(() -> {
+                    container.getChildren().remove(row);
+                    checkNotificationsAsync(user.getId());
+                })));
+        return row;
+    }
+
+    private static HBox inviteStatusRow(TrelloDAO.Invitation inv, String prefix, String icon, String variant, boolean faded) {
+        String status = inv.getStatus();
+        Label chip = switch (status) {
+            case "ACCEPTED" -> Ui.label("ПРИНЯТО", "chip", "ok");
+            case "DECLINED" -> Ui.label("ОТКЛОНЕНО", "chip", "bad");
+            default -> Ui.label("ОЖИДАЕТ", "chip", "warn");
+        };
+        HBox row = noticeRow(icon, variant,
+                twoLines(prefix + inv.getPersonName(), "Доска «" + inv.getBoardName() + "»"),
+                rightSide(chip, inv.getCreatedAt()));
+        if (faded) row.setOpacity(0.75);
+        return row;
+    }
+
+    private static HBox archivedNotificationRow(TrelloDAO.Notification notif) {
+        HBox row = noticeRow(Icons.BELL, "skill-slate", Ui.wrap(notif.getMessage(), "muted"),
+                rightSide(new Region(), notif.getCreatedAt()));
+        row.setOpacity(0.75);
+        return row;
+    }
+
+    // ----------------------------------------------------------- invite
+
+    private static void showInviteDialog(User sender, Board board) {
+        Stage dialog = modal("Пригласить участника");
+
+        ToggleButton byName = Ui.seg("Ник", Icons.USER);
+        ToggleButton byEmail = Ui.seg("Email", Icons.MAIL);
+        ToggleButton byPhone = Ui.seg("Телефон", Icons.PHONE);
+        HBox tabs = Ui.segmented(byName, byEmail, byPhone);
+        byName.setSelected(true);
+
+        TextField nameField = new TextField();
+        nameField.setPromptText("username пользователя");
+        TextField emailField = new TextField();
+        emailField.setPromptText("example@mail.com");
+        TextField phoneField = new TextField();
+        setupPhoneNumberFormatting(phoneField);
+        StackPane fields = new StackPane(nameField, emailField, phoneField);
+
+        Runnable showField = () -> {
+            nameField.setVisible(byName.isSelected());
+            emailField.setVisible(byEmail.isSelected());
+            phoneField.setVisible(byPhone.isSelected());
+            TextField active = byName.isSelected() ? nameField : byEmail.isSelected() ? emailField : phoneField;
+            Platform.runLater(active::requestFocus);
+        };
+        byName.setOnAction(e -> showField.run());
+        byEmail.setOnAction(e -> showField.run());
+        byPhone.setOnAction(e -> showField.run());
+        showField.run();
+
+        Label status = Ui.wrap("", "err");
+        Ui.message(status, null, false);
+
+        Button close = Ui.ghost("Закрыть", null);
+        close.setOnAction(e -> dialog.close());
+        Button send = Ui.primary("Отправить приглашение", Icons.SEND);
+        send.setDefaultButton(true);
+        HBox buttons = new HBox(10, Ui.hgrow(), close, send);
+
+        send.setOnAction(e -> {
+            String type = byName.isSelected() ? "username" : byEmail.isSelected() ? "email" : "phone";
+            String v = (type.equals("username") ? nameField : type.equals("email") ? emailField : phoneField).getText().trim();
+            if (v.isEmpty() || v.equals("+7")) return;
+            Ui.message(status, "Ищем пользователя…", true);
+            CompletableFuture.supplyAsync(() -> type.equals("username") ? UserDAO.findUserIdByUsername(v)
+                            : type.equals("email") ? UserDAO.findUserIdByEmail(v) : UserDAO.findUserIdByPhone(v))
+                    .thenAccept(id -> Platform.runLater(() -> {
+                        if (id == -1) {
+                            Ui.message(status, "Пользователь не найден.", false);
+                        } else if (id == sender.getId()) {
+                            Ui.message(status, "Нельзя пригласить самого себя.", false);
+                        } else {
+                            CompletableFuture.supplyAsync(() -> TrelloDAO.sendInvitation(sender.getId(), id, board.getId()))
+                                    .thenAccept(ok -> Platform.runLater(() -> Ui.message(status,
+                                            ok ? "Приглашение отправлено." : "Не удалось: пользователь уже участник доски.", ok)));
+                        }
+                    }));
+        });
+
+        VBox root = new VBox(14,
+                new VBox(4, Ui.label("Пригласить в «" + board.getTitle() + "»", "h2"),
+                        Ui.wrap("Найдём пользователя по нику, email или телефону и отправим приглашение.", "muted")),
+                tabs, fields, status, buttons);
+        root.getStyleClass().add("dialog-root");
+        VBox.setMargin(buttons, new Insets(6, 0, 0, 0));
+        dialog.setScene(Theme.scene(root, 480, 360));
+        dialog.show();
     }
 
     private static void setupPhoneNumberFormatting(TextField textField) {
@@ -556,15 +579,15 @@ public class TrelloHomeScene {
             StringBuilder formatted = new StringBuilder("+7 ");
             if (digits.length() > 1) {
                 formatted.append("(");
-                formatted.append(digits.substring(1, Math.min(4, digits.length())));
+                formatted.append(digits, 1, Math.min(4, digits.length()));
             }
             if (digits.length() >= 4) {
                 formatted.append(") ");
-                formatted.append(digits.substring(4, Math.min(7, digits.length())));
+                formatted.append(digits, 4, Math.min(7, digits.length()));
             }
             if (digits.length() >= 7) {
                 formatted.append("-");
-                formatted.append(digits.substring(7, Math.min(9, digits.length())));
+                formatted.append(digits, 7, Math.min(9, digits.length()));
             }
             if (digits.length() >= 9) {
                 formatted.append("-");
@@ -581,37 +604,11 @@ public class TrelloHomeScene {
         });
     }
 
-    private static Tab createInviteTab(String t, String l, String type, User s, Board b) {
-        Tab tab = new Tab(t); tab.setClosable(false);
-        VBox box = new VBox(15); box.setPadding(new Insets(20)); box.setAlignment(Pos.CENTER);
-
-        String textColor = MenuScene.getTextStyle();
-        if (MenuScene.isDarkTheme) box.setStyle("-fx-background-color: " + MenuScene.Theme.BG_DARK + ";");
-
-        TextField in = new TextField();
-        in.setPromptText("Поиск...");
-
-        if (type.equals("phone")) {
-            setupPhoneNumberFormatting(in);
-        }
-
-        Label label = new Label(l);
-        label.setStyle("-fx-text-fill: " + textColor + ";");
-
-        Label st = new Label();
-        Button btn = new Button("Отправить"); btn.setOnAction(e -> {
-            String v = in.getText().trim(); if(v.isEmpty()) return; st.setText("Поиск...");
-            CompletableFuture.supplyAsync(() -> type.equals("username") ? UserDAO.findUserIdByUsername(v) : type.equals("email") ? UserDAO.findUserIdByEmail(v) : UserDAO.findUserIdByPhone(v))
-                    .thenAccept(id -> Platform.runLater(() -> {
-                        if(id == -1) { st.setText("Не найден"); st.setTextFill(Color.RED); }
-                        else if(id == s.getId()) { st.setText("Нельзя себя"); st.setTextFill(Color.RED); }
-                        else CompletableFuture.supplyAsync(() -> TrelloDAO.sendInvitation(s.getId(), id, b.getId())).thenAccept(ok -> Platform.runLater(() -> {
-                                if(ok) { st.setText("Отправлено"); st.setTextFill(Color.GREEN); } else { st.setText("Ошибка/Уже там"); st.setTextFill(Color.RED); }
-                            }));
-                    }));
-        });
-        box.getChildren().addAll(label, in, btn, st); tab.setContent(box); return tab;
+    private static Stage modal(String title) {
+        Stage stage = new Stage();
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.initOwner(MenuScene.getStage());
+        stage.setTitle(title);
+        return stage;
     }
-
-    private static class Pair<K, V> { private K key; private V value; public Pair(K k, V v) { key=k; value=v; } public K getKey() { return key; } public V getValue() { return value; } }
 }

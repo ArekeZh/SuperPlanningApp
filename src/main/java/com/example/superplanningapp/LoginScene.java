@@ -1,132 +1,81 @@
 package com.example.superplanningapp;
 
-import javafx.geometry.Insets;
+import com.example.superplanningapp.ui.Theme;
+import com.example.superplanningapp.ui.Ui;
+import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+
+import java.util.concurrent.CompletableFuture;
 
 public class LoginScene {
 
     public static Scene createLoginScene(Stage stage) {
-        BorderPane mainLayout = new BorderPane();
-
-        // === НАСТРОЙКА ЦВЕТОВ ПО ТЕМЕ ===
-        // Определяем базовые цвета, используя константы из MenuScene (если они доступны)
-        // или жестко заданные цвета, чтобы соответствовать стилю
-        boolean isDark = MenuScene.isDarkTheme;
-
-        String bgColor = isDark ? "#121212" : "#f0f2f5";
-        String boxColor = isDark ? "#1a1a1a" : "#ffffff"; // Карточка входа
-        String textColor = isDark ? "#e4e6eb" : "#1c1e21";
-        String subTextColor = isDark ? "#b0b3b8" : "#606770";
-        String inputBg = isDark ? "#333333" : "#f5f6f7";
-        String inputText = isDark ? "white" : "black";
-        String accentColor = "#00a884"; // Зеленый акцент
-
-        // Применяем фон к главному окну
-        mainLayout.setStyle("-fx-background-color: " + bgColor + ";");
-
-        VBox loginBox = new VBox(20);
-        loginBox.setAlignment(Pos.CENTER);
-        loginBox.setPadding(new Insets(40));
-        loginBox.setMaxWidth(450);
-
-        // Стилизация карточки входа (Тень и закругления)
-        String shadow = isDark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.1)";
-        loginBox.setStyle("-fx-background-color: " + boxColor + "; " +
-                "-fx-background-radius: 15; " +
-                "-fx-effect: dropshadow(gaussian, " + shadow + ", 20, 0, 0, 5);");
-
-        // --- ЗАГОЛОВОК ---
-        Label titleLabel = new Label("SuperPlanningApp");
-        titleLabel.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: " + accentColor + ";");
-
-        Label subtitleLabel = new Label("Добро пожаловать!");
-        subtitleLabel.setStyle("-fx-font-size: 16px; -fx-text-fill: " + subTextColor + ";");
-
-        // --- ПОЛЯ ВВОДА ---
-        String fieldStyle = "-fx-background-color: " + inputBg + "; -fx-text-fill: " + inputText + "; " +
-                "-fx-background-radius: 8; -fx-border-color: transparent; -fx-font-size: 14px; -fx-padding: 10;";
-        // Доп. стиль для placeholder (подсказки) в темной теме сложно задать без CSS файла,
-        // но основной текст будет белым.
+        Label title = Ui.label("С возвращением", "h2");
+        Label lead = Ui.wrap("Войдите, чтобы продолжить: доски, привычки и AI-помощник в одном месте.", "lead");
+        VBox heading = new VBox(6, title, lead);
 
         TextField loginField = new TextField();
-        loginField.setPromptText("Имя пользователя");
-        loginField.setPrefHeight(45);
-        loginField.setStyle(fieldStyle);
-
+        loginField.setPromptText("username, email или телефон");
         PasswordField passwordField = new PasswordField();
-        passwordField.setPromptText("Пароль");
-        passwordField.setPrefHeight(45);
-        passwordField.setStyle(fieldStyle);
+        passwordField.setPromptText("Ваш пароль");
 
-        // --- КНОПКИ ---
-        Button loginButton = new Button("Войти");
-        loginButton.setPrefWidth(350);
-        loginButton.setPrefHeight(45);
-        loginButton.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-font-size: 14px; -fx-background-radius: 8; -fx-cursor: hand;");
+        Label message = Ui.wrap("", "err");
+        Ui.message(message, null, false);
 
-        // Эффект нажатия для кнопки
-        loginButton.setOnMouseEntered(e -> loginButton.setStyle("-fx-background-color: #008f72; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-background-radius: 8; -fx-cursor: hand;"));
-        loginButton.setOnMouseExited(e -> loginButton.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-background-radius: 8; -fx-cursor: hand;"));
+        Button loginButton = Ui.primary("Войти", null);
+        loginButton.setMaxWidth(Double.MAX_VALUE);
+        loginButton.setDefaultButton(true); // Enter в любом поле
 
-        Button registerButton = new Button("Создать аккаунт");
-        registerButton.setPrefWidth(350);
-        registerButton.setPrefHeight(45);
-        registerButton.setStyle("-fx-background-color: transparent; -fx-text-fill: " + accentColor + "; -fx-font-size: 14px; -fx-cursor: hand; -fx-underline: true;");
+        Button toRegister = Ui.link("Создать аккаунт");
+        HBox swap = new HBox(6, Ui.label("Нет аккаунта?", "muted"), toRegister);
+        swap.setAlignment(Pos.CENTER);
 
-        Label messageLabel = new Label();
-        messageLabel.setWrapText(true);
-        messageLabel.setAlignment(Pos.CENTER);
-        messageLabel.setStyle("-fx-text-fill: #f15c6d; -fx-font-size: 13px;"); // Красный цвет ошибок
+        VBox card = Ui.authCard(
+                heading,
+                Ui.field("Логин", loginField, null),
+                Ui.field("Пароль", passwordField, null),
+                message,
+                loginButton,
+                swap);
+        VBox.setMargin(heading, new javafx.geometry.Insets(0, 0, 8, 0));
+        VBox.setMargin(loginButton, new javafx.geometry.Insets(6, 0, 0, 0));
 
-        // --- ЛОГИКА ---
         loginButton.setOnAction(e -> {
             String loginInput = loginField.getText().trim();
             String password = passwordField.getText();
-
             if (loginInput.isEmpty() || password.isEmpty()) {
-                messageLabel.setText("⚠ Заполните все поля!");
+                Ui.message(message, "Заполните оба поля.", false);
                 return;
             }
+            Ui.message(message, null, false);
+            loginButton.setDisable(true);
+            loginButton.setText("Входим…");
 
-            User user = UserDAO.loginUser(loginInput, password);
-
-            if (user != null) {
-                stage.setScene(MenuScene.createMenuScene(stage, user));
-            } else {
-                messageLabel.setText("⚠ Неверный логин или пароль!");
-            }
+            // Запрос к базе — в фоне, чтобы окно не «замерзало».
+            CompletableFuture.supplyAsync(() -> UserDAO.loginUser(loginInput, password))
+                    .whenComplete((user, err) -> Platform.runLater(() -> {
+                        loginButton.setDisable(false);
+                        loginButton.setText("Войти");
+                        if (user != null) {
+                            stage.setScene(MenuScene.createMenuScene(stage, user));
+                        } else {
+                            Ui.message(message, "Неверный логин или пароль. Если данные верны — проверьте подключение к базе (подробности в консоли).", false);
+                        }
+                    }));
         });
 
-        registerButton.setOnAction(e -> {
-            stage.setScene(RegisterScene.createRegisterScene(stage));
-        });
+        toRegister.setOnAction(e -> stage.setScene(RegisterScene.createRegisterScene(stage)));
 
-        loginBox.getChildren().addAll(
-                titleLabel, subtitleLabel,
-                loginField, passwordField,
-                loginButton, registerButton, messageLabel
-        );
-
-        StackPane centerPane = new StackPane(loginBox);
-        centerPane.setPadding(new Insets(50));
-        mainLayout.setCenter(centerPane);
-
-        // Мы больше не подключаем CSS файл, так как стили заданы выше
-        Scene scene = new Scene(mainLayout);
-
-        mainLayout.setOnMouseClicked(e -> mainLayout.requestFocus());
-
-        scene.setOnKeyPressed(e -> {
-            if (e.getCode() == javafx.scene.input.KeyCode.ENTER) {
-                loginButton.fire();
-            }
-        });
-
+        Scene scene = Theme.scene(Ui.authScreen(card));
+        Platform.runLater(loginField::requestFocus);
         return scene;
     }
 }

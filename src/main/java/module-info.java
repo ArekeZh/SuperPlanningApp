@@ -15,6 +15,7 @@ module com.example.superplanningapp {
     requires jbcrypt;
     requires org.json;             // Чтобы работать с JSON
     requires java.net.http;
+    requires java.prefs;               // запоминаем выбранную тему
     requires com.zaxxer.hikari;        // Чтобы отправлять запросы в Интернет (к ИИ)
 
 

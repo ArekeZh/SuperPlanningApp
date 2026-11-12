@@ -24,7 +24,7 @@ public class AIService {
             if (API_KEY == null || API_KEY.isEmpty()) {
                 throw new RuntimeException("GOOGLE_API_KEY не найден в .env файле! Пожалуйста, добавьте GOOGLE_API_KEY=your_key в .env");
             }
-            API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + API_KEY;
+            API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" + API_KEY;
         } catch (Exception e) {
             throw new RuntimeException("Ошибка загрузки GOOGLE_API_KEY из .env: " + e.getMessage(), e);
         }

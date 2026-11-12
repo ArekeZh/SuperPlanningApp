@@ -1,105 +1,151 @@
 package com.example.superplanningapp;
 
+import com.example.superplanningapp.ui.Icons;
+import com.example.superplanningapp.ui.Ui;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.Node;
+import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 
+import java.util.concurrent.CompletableFuture;
+
+/** AI-помощник: переписка «пузырями», быстрые подсказки, поле ввода-пилюля. */
 public class ChatScene {
 
-    public static BorderPane createChatView(User user) {
-        BorderPane mainLayout = new BorderPane();
-        // === ПРИМЕНЕНИЕ ТЕМЫ ФОНА ===
-        mainLayout.setStyle("-fx-background-color: " + MenuScene.getBackgroundStyle() + ";");
+    private static final String[] SUGGESTIONS = {
+            "Спланируй продуктивное утро",
+            "Распредели 5 задач на день",
+            "Как не прокрастинировать?",
+            "Расписание учёбы на неделю"
+    };
 
-        // Цвета в зависимости от темы
-        String textColor = MenuScene.getTextStyle();
-        String contentBg = MenuScene.isDarkTheme ? "#232323" : "white";
-        String inputBg = MenuScene.isDarkTheme ? "#333333" : "white"; // Фон полей ввода
-        String inputText = MenuScene.isDarkTheme ? "white" : "black";
+    public static Node createChatView(User user) {
+        VBox header = Ui.header("AI-ассистент", "Планируем день",
+                "Gemini поможет составить распорядок, расставить приоритеты и не забыть о главном. "
+                        + "Отвечает только на вопросы о планировании.");
 
-        // CSS для TextArea чтобы перекрасить её внутренности
-        String textAreaStyle = "-fx-font-size: 14px; -fx-background-color: transparent; " +
-                "-fx-control-inner-background: " + inputBg + "; " +
-                "-fx-text-fill: " + inputText + ";";
+        VBox messages = new VBox(14);
+        messages.setPadding(new Insets(4, 6, 4, 2));
+        ScrollPane scroll = new ScrollPane(messages);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        messages.heightProperty().addListener((o, a, b) -> scroll.setVvalue(1.0));
 
-        Label headerLabel = new Label("AI Помощник");
-        headerLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + textColor + "; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 1);");
-        BorderPane.setAlignment(headerLabel, Pos.CENTER);
-        BorderPane.setMargin(headerLabel, new Insets(20, 0, 0, 0));
-        mainLayout.setTop(headerLabel);
+        String name = user.getFirstName() != null && !user.getFirstName().isBlank()
+                ? user.getFirstName().trim() : user.getUsername();
+        messages.getChildren().add(bubble("Привет, " + name
+                + "! Расскажите, что нужно успеть сегодня, — составлю план по часам.", false, scroll, null));
 
-        TextArea chatArea = new TextArea();
-        chatArea.setEditable(false);
-        chatArea.setWrapText(true);
-        chatArea.setStyle(textAreaStyle);
+        TextField input = new TextField();
+        input.setPromptText("Например: как лучше спланировать утро?");
+        HBox.setHgrow(input, Priority.ALWAYS);
 
-        // Убираем стандартные рамки TextArea, чтобы смотрелось чище
-        chatArea.getStyleClass().add("edge-to-edge");
+        Button send = new Button();
+        send.getStyleClass().setAll("button", "send-btn");
+        send.setGraphic(Icons.of(Icons.SEND, 17));
+        send.setTooltip(Ui.tip("Отправить (Enter)"));
+        Ui.fix(send, 42);
+        send.disableProperty().bind(input.textProperty().isEmpty());
 
-        chatArea.appendText("🤖 Gemini: Привет, " + user.getDisplayName() + "! Я готов помочь тебе спланировать день. Спрашивай!\n\n");
+        HBox composer = new HBox(input, send);
+        composer.getStyleClass().add("composer");
 
-        TextField inputField = new TextField();
-        inputField.setPromptText("Например: Как лучше спланировать утро?");
-        inputField.setPrefHeight(45);
-
-        // Стилизация поля ввода
-        String inputStyle = "-fx-background-color: " + inputBg + "; -fx-text-fill: " + inputText + "; -fx-background-radius: 5; -fx-border-color: #ccc; -fx-border-radius: 5;";
-        if (MenuScene.isDarkTheme) {
-            inputStyle = "-fx-background-color: " + inputBg + "; -fx-text-fill: white; -fx-prompt-text-fill: #888; -fx-background-radius: 5; -fx-border-color: #555; -fx-border-radius: 5;";
+        FlowPane chips = new FlowPane(8, 8);
+        for (String s : SUGGESTIONS) {
+            Button chip = Ui.ghost(s, null);
+            chip.getStyleClass().add("btn-sm");
+            chip.setOnAction(e -> {
+                input.setText(s);
+                send.fire();
+            });
+            chips.getChildren().add(chip);
         }
-        inputField.setStyle(inputStyle);
 
-        Button sendButton = new Button("Отправить");
-        sendButton.setPrefHeight(45);
-        sendButton.setPrefWidth(100);
-        // Акцентный цвет кнопки
-        sendButton.setStyle("-fx-background-color: " + MenuScene.Theme.ACCENT + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 5;");
+        VBox card = new VBox(16, scroll, chips, composer);
+        card.getStyleClass().addAll("platform", "elev");
+        VBox.setVgrow(card, Priority.ALWAYS);
 
-        HBox inputBox = new HBox(10, inputField, sendButton);
-        inputBox.setAlignment(Pos.CENTER);
-        HBox.setHgrow(inputField, Priority.ALWAYS);
-
-        VBox contentBox = new VBox(15, chatArea, inputBox);
-        contentBox.setPadding(new Insets(20));
-        contentBox.setMaxWidth(700);
-        contentBox.setMaxHeight(500);
-
-        // Стилизация контейнера чата (карточки)
-        contentBox.setStyle("-fx-background-color: " + contentBg + "; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 10, 0, 0, 0);");
-
-        VBox.setVgrow(chatArea, Priority.ALWAYS);
-
-        StackPane centerPane = new StackPane(contentBox);
-        centerPane.setPadding(new Insets(20));
-        mainLayout.setCenter(centerPane);
-
-        sendButton.setOnAction(e -> {
-            String question = inputField.getText().trim();
+        Runnable ask = () -> {
+            String question = input.getText().trim();
             if (question.isEmpty()) return;
 
-            chatArea.appendText("Вы: " + question + "\n");
-            inputField.clear();
-            inputField.setDisable(true);
-            sendButton.setDisable(true);
-            chatArea.appendText("⏳ AI думает...\n");
+            messages.getChildren().add(bubble(question, true, scroll, null));
+            input.clear();
+            input.setDisable(true);
+            chips.setDisable(true);
+            HBox typing = bubble("AI думает…", false, scroll, "bubble-typing");
+            messages.getChildren().add(typing);
 
-            AIService.askAI(question).thenAccept(answer -> {
-                Platform.runLater(() -> {
-                    chatArea.appendText("🤖 Gemini: " + answer + "\n\n");
-                    chatArea.setScrollTop(Double.MAX_VALUE);
-                    inputField.setDisable(false);
-                    sendButton.setDisable(false);
-                    inputField.requestFocus();
-                });
-            });
+            CompletableFuture<String> answer;
+            try {
+                answer = AIService.askAI(question);
+            } catch (Throwable t) {
+                // Например, нет GOOGLE_API_KEY в .env — AIService не инициализируется.
+                answer = CompletableFuture.completedFuture(
+                        "Ошибка: AI недоступен. Проверьте GOOGLE_API_KEY в файле .env.");
+            }
+            answer.thenAccept(text -> Platform.runLater(() -> {
+                boolean failed = text == null || text.startsWith("Ошибка");
+                int i = messages.getChildren().indexOf(typing);
+                HBox reply = bubble(text == null ? "Ошибка: пустой ответ." : text.trim(), false, scroll,
+                        failed ? "bubble-error" : null);
+                if (i >= 0) messages.getChildren().set(i, reply); else messages.getChildren().add(reply);
+                input.setDisable(false);
+                chips.setDisable(false);
+                input.requestFocus();
+            }));
+        };
+        send.setOnAction(e -> ask.run());
+        input.setOnAction(e -> ask.run());
+
+        VBox root = new VBox(26, header, card);
+        root.setPadding(new Insets(40, 52, 36, 52));
+        root.setMaxWidth(1000);
+        Ui.rise(header, 0);
+        Ui.rise(card, 1);
+
+        StackPane wrap = new StackPane(root);
+        StackPane.setAlignment(root, Pos.TOP_LEFT);
+        Platform.runLater(input::requestFocus);
+        return wrap;
+    }
+
+    private static HBox bubble(String text, boolean fromUser, ScrollPane scroll, String extra) {
+        Label label = Ui.wrap(text, "bubble", fromUser ? "bubble-user" : "bubble-ai", extra);
+        label.maxWidthProperty().bind(scroll.widthProperty().multiply(0.72));
+
+        MenuItem copy = new MenuItem("Копировать");
+        copy.setGraphic(Icons.of(Icons.COPY, 14));
+        copy.setOnAction(e -> {
+            ClipboardContent c = new ClipboardContent();
+            c.putString(label.getText());
+            Clipboard.getSystemClipboard().setContent(c);
         });
+        label.setContextMenu(new ContextMenu(copy));
 
-        inputField.setOnKeyPressed(e -> {
-            if (e.getCode() == javafx.scene.input.KeyCode.ENTER) sendButton.fire();
-        });
-
-        return mainLayout;
+        HBox row;
+        if (fromUser) {
+            row = new HBox(Ui.hgrow(), label);
+            row.setAlignment(Pos.BOTTOM_RIGHT);
+        } else {
+            row = new HBox(10, Ui.skill(Icons.SPARKLES, "skill-purple", 32), label);
+            row.setAlignment(Pos.BOTTOM_LEFT);
+        }
+        Ui.rise(row, 0);
+        return row;
     }
 }

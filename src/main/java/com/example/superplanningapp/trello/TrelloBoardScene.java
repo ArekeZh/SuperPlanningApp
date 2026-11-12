@@ -2,287 +2,294 @@ package com.example.superplanningapp.trello;
 
 import com.example.superplanningapp.MenuScene;
 import com.example.superplanningapp.User;
+import com.example.superplanningapp.ui.Icons;
+import com.example.superplanningapp.ui.Ui;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.*;
-import javafx.scene.input.*;
-import javafx.scene.layout.*;
-import java.util.List;
+import javafx.scene.Node;
+import javafx.scene.SnapshotParameters;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+
 import java.util.concurrent.CompletableFuture;
 
+/** Доска: колонки-списки с карточками задач, перетаскивание между колонками. */
 public class TrelloBoardScene {
 
-    public static BorderPane createBoardView(User user, Board board) {
-        BorderPane mainLayout = new BorderPane();
-        mainLayout.setStyle("-fx-background-color: " + MenuScene.getBackgroundStyle() + ";");
+    private static final String[][] COLORS = {
+            {"NONE", "Без цвета"}, {"red", "Красный"}, {"yellow", "Жёлтый"}, {"green", "Зелёный"}
+    };
 
-        // --- 1. ВЕРХНЯЯ ПАНЕЛЬ ---
-        HBox topBar = new HBox();
-        topBar.setPadding(new Insets(15, 20, 15, 20));
-        topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.setSpacing(20);
-
-        String topBarBg = MenuScene.isDarkTheme ? MenuScene.Theme.SIDEBAR_DARK : "rgba(255,255,255,0.5)";
-        topBar.setStyle("-fx-background-color: " + topBarBg + "; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 0, 0, 0, 1);");
-
-        Label boardTitle = new Label(board.getTitle());
-        boardTitle.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + MenuScene.getTextStyle() + ";");
-
-        Region spacer1 = new Region();
-        HBox.setHgrow(spacer1, Priority.ALWAYS);
+    public static Node createBoardView(User user, Board board) {
+        Button back = Ui.ghost("Все доски", Icons.ARROW_LEFT);
+        back.getStyleClass().add("btn-sm");
+        back.setOnAction(e -> MenuScene.openBoards());
 
         TextField newListField = new TextField();
-        newListField.setPromptText("Название списка");
-        newListField.setPrefWidth(200);
-        if (MenuScene.isDarkTheme) {
-            newListField.setStyle("-fx-background-color: " + MenuScene.Theme.HOVER_DARK + "; -fx-text-fill: white;");
-        }
+        newListField.setPromptText("Название нового списка");
+        newListField.setPrefWidth(240);
+        Button addListBtn = Ui.primary("Добавить список", Icons.PLUS);
+        newListField.setOnAction(e -> addListBtn.fire());
 
-        Button addListBtn = new Button("+ Добавить список");
-        addListBtn.setStyle("-fx-background-color: " + MenuScene.Theme.ACCENT + "; -fx-text-fill: white; -fx-font-weight: bold;");
+        String intro = board.getDescription() != null && !board.getDescription().isBlank()
+                ? board.getDescription()
+                : "Перетаскивайте карточки между списками. Цвет и название списка меняются в его меню.";
+        HBox head = Ui.headerRow(Ui.header("Доска", board.getTitle(), intro), newListField, addListBtn);
 
-        topBar.getChildren().addAll(boardTitle, spacer1, newListField, addListBtn);
-
-        // --- 2. ЦЕНТРАЛЬНАЯ ОБЛАСТЬ ---
-        StackPane centerStack = new StackPane();
-
-        HBox listsContainer = new HBox(15);
-        listsContainer.setPadding(new Insets(20));
+        HBox listsContainer = new HBox(16);
         listsContainer.setAlignment(Pos.TOP_LEFT);
+        listsContainer.setPadding(new Insets(4, 4, 14, 4));
 
         ScrollPane scrollPane = new ScrollPane(listsContainer);
         scrollPane.setFitToHeight(true);
-        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-        scrollPane.getStyleClass().add("edge-to-edge");
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
 
         ProgressIndicator loadingSpinner = new ProgressIndicator();
-        loadingSpinner.setMaxSize(60, 60);
-        loadingSpinner.setVisible(true);
+        Ui.fix(loadingSpinner, 40);
 
-        centerStack.getChildren().addAll(scrollPane, loadingSpinner);
+        StackPane centre = new StackPane(scrollPane, loadingSpinner);
+        VBox.setVgrow(centre, Priority.ALWAYS);
 
-        mainLayout.setTop(topBar);
-        mainLayout.setCenter(centerStack);
+        VBox root = new VBox(20, back, head, centre);
+        root.setPadding(new Insets(28, 52, 28, 52));
+        Ui.rise(back, 0);
+        Ui.rise(head, 1);
+        Ui.rise(centre, 2);
 
-        // --- ЗАГРУЗКА ДАННЫХ ---
-        CompletableFuture.runAsync(() -> {
-            try {
-                Thread.sleep(50);
-                Platform.runLater(() -> refreshListsAsync(listsContainer, board.getId(), loadingSpinner));
-            } catch (InterruptedException e) { e.printStackTrace(); }
-        });
+        refreshListsAsync(listsContainer, board.getId(), loadingSpinner);
 
         addListBtn.setOnAction(e -> {
             String title = newListField.getText().trim();
-            if (!title.isEmpty()) {
-                loadingSpinner.setVisible(true);
-                CompletableFuture.runAsync(() -> {
-                    TrelloDAO.createList(title, board.getId());
-                }).thenRun(() -> Platform.runLater(() -> {
-                    newListField.clear();
-                    refreshListsAsync(listsContainer, board.getId(), loadingSpinner);
-                })).exceptionally(ex -> {
-                    Platform.runLater(() -> showError("Ошибка", ex.getMessage()));
-                    return null;
-                });
+            if (title.isEmpty()) {
+                newListField.requestFocus();
+                return;
             }
+            loadingSpinner.setVisible(true);
+            CompletableFuture.runAsync(() -> TrelloDAO.createList(title, board.getId()))
+                    .thenRun(() -> Platform.runLater(() -> {
+                        newListField.clear();
+                        refreshListsAsync(listsContainer, board.getId(), loadingSpinner);
+                    }))
+                    .exceptionally(ex -> {
+                        Platform.runLater(() -> Ui.error("Не удалось создать список", ex.getMessage(), MenuScene.getStage()));
+                        return null;
+                    });
         });
 
-        return mainLayout;
+        return root;
     }
 
     private static void refreshListsAsync(HBox container, int boardId, ProgressIndicator spinner) {
         spinner.setVisible(true);
-
         CompletableFuture.supplyAsync(() -> TrelloDAO.getListsByBoard(boardId))
-                .thenAccept(lists -> {
-                    Platform.runLater(() -> {
-                        container.getChildren().clear();
-                        if (lists.isEmpty()) {
-                            spinner.setVisible(false);
-                            Label emptyLabel = new Label("Нет списков. Создайте первый!");
-                            emptyLabel.setStyle("-fx-text-fill: " + MenuScene.getTextStyle() + "; -fx-font-size: 16px;");
-                            container.getChildren().add(emptyLabel);
-                        } else {
-                            for (TrelloList list : lists) {
-                                VBox listColumn = createListColumn(list, container, boardId, spinner);
-                                container.getChildren().add(listColumn);
-                            }
-                            spinner.setVisible(false);
-                        }
-                    });
-                })
+                .thenAccept(lists -> Platform.runLater(() -> {
+                    container.getChildren().clear();
+                    spinner.setVisible(false);
+                    if (lists.isEmpty()) {
+                        VBox empty = new VBox(10, Ui.skill(Icons.KANBAN, "skill-sky", 48),
+                                Ui.label("Списков пока нет", "h3"),
+                                Ui.wrap("Начните с трёх: «Сделать», «В работе», «Готово». Название — в поле справа сверху.", "muted"));
+                        empty.getStyleClass().add("platform");
+                        empty.setPrefWidth(420);
+                        empty.setMaxHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+                        container.getChildren().add(empty);
+                        return;
+                    }
+                    for (TrelloList list : lists) {
+                        container.getChildren().add(createListColumn(list, container, boardId, spinner));
+                    }
+                }))
                 .exceptionally(ex -> {
                     Platform.runLater(() -> {
                         spinner.setVisible(false);
-                        showError("Ошибка загрузки", ex.getMessage());
+                        Ui.error("Ошибка загрузки", ex.getMessage(), MenuScene.getStage());
                     });
                     return null;
                 });
     }
 
+    private static String colorClass(String color) {
+        return "red".equals(color) || "yellow".equals(color) || "green".equals(color) ? color : null;
+    }
+
     private static VBox createListColumn(TrelloList list, HBox mainContainer, int boardId, ProgressIndicator mainSpinner) {
-        VBox column = new VBox(10);
+        VBox column = new VBox();
+        column.getStyleClass().add("list-col");
+        Ui.addClasses(column, colorClass(list.getColor()));
+        column.setMinWidth(300);
         column.setPrefWidth(300);
+        column.setMaxWidth(300);
+        column.setMaxHeight(Double.MAX_VALUE);
 
-        column.setStyle("-fx-background-color: " + getListColor(list.getColor()) + "; -fx-background-radius: 8; -fx-padding: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 1);");
+        // Заголовок колонки
+        Label count = Ui.label("0", "chip");
+        MenuButton menuBtn = new MenuButton();
+        menuBtn.getStyleClass().add("plain");
+        menuBtn.setGraphic(Icons.of(Icons.MORE, 18));
 
-        // Header
-        HBox header = new HBox();
-        header.setAlignment(Pos.CENTER_LEFT);
-        Label listTitle = new Label(list.getTitle());
-
-        String headerTextColor = MenuScene.isDarkTheme ? "#e4e6eb" : "#000000";
-        listTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + headerTextColor + ";");
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        MenuButton menuBtn = new MenuButton("⋮");
-        menuBtn.setStyle("-fx-background-color: transparent; -fx-mark-color: " + headerTextColor + "; -fx-font-size: 14px; -fx-cursor: hand;");
-
-        MenuItem editItem = new MenuItem("Изменить название");
+        MenuItem editItem = new MenuItem("Переименовать");
+        editItem.setGraphic(Icons.of(Icons.PENCIL, 14));
         editItem.setOnAction(e -> showEditListDialog(list, mainContainer, boardId, mainSpinner));
-
         MenuItem colorItem = new MenuItem("Изменить цвет");
+        colorItem.setGraphic(Icons.of(Icons.SPARKLES, 14));
         colorItem.setOnAction(e -> showColorDialog(list, mainContainer, boardId, mainSpinner));
-
         MenuItem deleteItem = new MenuItem("Удалить список");
+        deleteItem.setGraphic(Icons.of(Icons.TRASH, 14));
+        deleteItem.getStyleClass().add("danger");
         deleteItem.setOnAction(e -> {
+            if (!Ui.confirm("Удалить список «" + list.getTitle() + "»?", "Все карточки в нём тоже удалятся.",
+                    "Удалить", true, MenuScene.getStage())) return;
             mainSpinner.setVisible(true);
             CompletableFuture.runAsync(() -> TrelloDAO.deleteList(list.getId()))
                     .thenRun(() -> Platform.runLater(() -> refreshListsAsync(mainContainer, boardId, mainSpinner)));
         });
-
         menuBtn.getItems().addAll(editItem, colorItem, deleteItem);
-        header.getChildren().addAll(listTitle, spacer, menuBtn);
 
-        // Cards Container
+        Label title = Ui.label(list.getTitle(), "list-title");
+        title.setMinWidth(0);
+        HBox header = new HBox(9, Ui.dot(10, "list-dot", colorClass(list.getColor())), title, count, Ui.hgrow(), menuBtn);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setPadding(new Insets(0, 0, 0, 4));
+
+        // Карточки
         VBox cardsContainer = new VBox(8);
-        cardsContainer.setStyle("-fx-background-color: transparent;");
+        cardsContainer.setPadding(new Insets(2, 2, 6, 2));
         ScrollPane cardsScroll = new ScrollPane(cardsContainer);
         cardsScroll.setFitToWidth(true);
-        cardsScroll.setPrefHeight(500);
-        cardsScroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-        cardsScroll.getStyleClass().add("edge-to-edge");
+        cardsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        VBox.setVgrow(cardsScroll, Priority.ALWAYS);
+        loadCardsForColumn(cardsContainer, list.getId(), mainContainer, boardId, mainSpinner, count);
 
-        loadCardsForColumn(cardsContainer, list.getId(), mainContainer, boardId, mainSpinner);
+        // Добавление карточки: кнопка раскрывается в форму
+        Button addToggle = Ui.ghost("Добавить задачу", Icons.PLUS);
+        addToggle.getStyleClass().add("btn-sm");
+        addToggle.setMaxWidth(Double.MAX_VALUE);
 
-        // Add Card Area
-        VBox addCardSection = new VBox(5);
         TextField cardTitleField = new TextField();
         cardTitleField.setPromptText("Название задачи");
         TextArea cardDescField = new TextArea();
-        cardDescField.setPromptText("Описание");
+        cardDescField.setPromptText("Описание (необязательно)");
         cardDescField.setPrefRowCount(2);
+        cardDescField.setWrapText(true);
+        Button addCardBtn = Ui.primary("Добавить", null);
+        addCardBtn.getStyleClass().add("btn-sm");
+        Button cancelBtn = Ui.iconButton(Icons.X, "Отмена");
+        HBox formButtons = new HBox(6, addCardBtn, cancelBtn);
+        formButtons.setAlignment(Pos.CENTER_LEFT);
+        VBox form = new VBox(8, cardTitleField, cardDescField, formButtons);
 
-        Button addCardBtn = new Button("Добавить");
-        addCardBtn.setStyle("-fx-background-color: " + MenuScene.Theme.ACCENT + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;");
-
-        if(MenuScene.isDarkTheme) {
-            String fieldStyle = "-fx-background-color: " + MenuScene.Theme.HOVER_DARK + "; -fx-text-fill: white; -fx-prompt-text-fill: #888;";
-            cardTitleField.setStyle(fieldStyle);
-            cardDescField.setStyle("text-area-background: " + MenuScene.Theme.HOVER_DARK + "; -fx-text-fill: white; -fx-control-inner-background: " + MenuScene.Theme.HOVER_DARK + "; -fx-prompt-text-fill: #888;");
-        }
-
-        addCardBtn.setOnAction(e -> {
-            String title = cardTitleField.getText().trim();
-            if (!title.isEmpty()) {
-                String desc = cardDescField.getText().trim();
-                CompletableFuture.runAsync(() -> TrelloDAO.createCard(title, desc, list.getId()))
-                        .thenRun(() -> Platform.runLater(() -> {
-                            cardTitleField.clear();
-                            cardDescField.clear();
-                            loadCardsForColumn(cardsContainer, list.getId(), mainContainer, boardId, mainSpinner);
-                        }));
-            }
+        VBox addSection = new VBox(addToggle);
+        addToggle.setOnAction(e -> {
+            addSection.getChildren().setAll(form);
+            cardTitleField.requestFocus();
         });
+        cancelBtn.setOnAction(e -> {
+            cardTitleField.clear();
+            cardDescField.clear();
+            addSection.getChildren().setAll(addToggle);
+        });
+        Runnable addCard = () -> {
+            String t = cardTitleField.getText().trim();
+            if (t.isEmpty()) return;
+            String d = cardDescField.getText().trim();
+            CompletableFuture.runAsync(() -> TrelloDAO.createCard(t, d, list.getId()))
+                    .thenRun(() -> Platform.runLater(() -> {
+                        cardTitleField.clear();
+                        cardDescField.clear();
+                        cardTitleField.requestFocus();
+                        loadCardsForColumn(cardsContainer, list.getId(), mainContainer, boardId, mainSpinner, count);
+                    }));
+        };
+        addCardBtn.setOnAction(e -> addCard.run());
+        cardTitleField.setOnAction(e -> addCard.run());
 
-        addCardSection.getChildren().addAll(cardTitleField, cardDescField, addCardBtn);
-        column.getChildren().addAll(header, cardsScroll, addCardSection);
-
-        setupDragAndDrop(cardsContainer, list.getId(), mainContainer, boardId, mainSpinner);
-
+        column.setSpacing(12);
+        column.getChildren().addAll(header, cardsScroll, addSection);
+        setupDragAndDrop(column, list.getId(), mainContainer, boardId, mainSpinner);
         return column;
     }
 
-    private static void loadCardsForColumn(VBox container, int listId, HBox mainContainer, int boardId, ProgressIndicator spinner) {
+    private static void loadCardsForColumn(VBox container, int listId, HBox mainContainer, int boardId,
+                                           ProgressIndicator spinner, Label count) {
         CompletableFuture.supplyAsync(() -> TrelloDAO.getCardsByList(listId))
                 .thenAccept(cards -> Platform.runLater(() -> {
                     container.getChildren().clear();
+                    count.setText(String.valueOf(cards.size()));
                     for (Card card : cards) {
-                        container.getChildren().add(createCardBox(card, listId, boardId, mainContainer, spinner));
+                        container.getChildren().add(createCardBox(card, boardId, mainContainer, spinner));
                     }
                 }));
     }
 
-    private static VBox createCardBox(Card card, int listId, int boardId, HBox mainContainer, ProgressIndicator spinner) {
-        VBox cardBox = new VBox(5);
+    private static VBox createCardBox(Card card, int boardId, HBox mainContainer, ProgressIndicator spinner) {
+        Label titleLabel = Ui.wrap(card.getTitle(), "task-title");
+        titleLabel.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
-        String cardBg = MenuScene.isDarkTheme ? "#232323" : "white";
-        String textColor = MenuScene.getTextStyle();
-        // Сделал еще светлее для контраста (#aaaaaa)
-        String descColor = MenuScene.isDarkTheme ? "#aaaaaa" : "#666666";
+        Button deleteBtn = Ui.iconButton(Icons.X, "Удалить задачу", "danger");
+        deleteBtn.setGraphic(Icons.of(Icons.X, 14));
+        deleteBtn.setStyle("-fx-padding: 3; -fx-background-radius: 8;"); // компактно, чтобы не раздувать строку
 
-        cardBox.setStyle("-fx-background-color: " + cardBg + "; -fx-background-radius: 5; -fx-padding: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 3, 0, 0, 1);");
+        HBox titleRow = new HBox(6, titleLabel, deleteBtn);
+        titleRow.setAlignment(Pos.TOP_LEFT);
+
+        VBox cardBox = new VBox(titleRow);
+        cardBox.getStyleClass().add("task-card");
         cardBox.setUserData(card);
-
-        HBox titleRow = new HBox();
-        titleRow.setAlignment(Pos.CENTER_LEFT);
-        Label titleLabel = new Label(card.getTitle());
-        titleLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: " + textColor + ";");
-        titleLabel.setWrapText(true);
-        titleLabel.setMaxWidth(220);
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        Button deleteBtn = new Button("✕");
-        deleteBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: " + MenuScene.Theme.ERROR + "; -fx-cursor: hand;");
-
-        deleteBtn.setOnAction(e -> {
-            CompletableFuture.runAsync(() -> TrelloDAO.deleteCard(card.getId()))
-                    .thenRun(() -> Platform.runLater(() -> refreshListsAsync(mainContainer, boardId, spinner)));
-        });
-
-        titleRow.getChildren().addAll(titleLabel, spacer, deleteBtn);
-
-        // --- ОПИСАНИЕ КАРТОЧКИ ---
-        Label descLabel = new Label(card.getDescription());
-        descLabel.setStyle("-fx-text-fill: " + descColor + "; -fx-font-size: 12px;");
-        descLabel.setWrapText(true);
-        descLabel.setMaxWidth(260);
-
-        cardBox.getChildren().add(titleRow);
-
-        // Добавляем описание только если оно есть
-        if (card.getDescription() != null && !card.getDescription().trim().isEmpty()) {
-            cardBox.getChildren().add(descLabel);
+        if (card.getDescription() != null && !card.getDescription().isBlank()) {
+            cardBox.getChildren().add(Ui.wrap(card.getDescription(), "task-desc"));
         }
 
-        cardBox.setOnMouseEntered(e -> cardBox.setStyle("-fx-background-color: " + (MenuScene.isDarkTheme ? "#2c2c2c" : "#f9f9f9") + "; -fx-background-radius: 5; -fx-padding: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1); -fx-cursor: hand;"));
-        cardBox.setOnMouseExited(e -> cardBox.setStyle("-fx-background-color: " + cardBg + "; -fx-background-radius: 5; -fx-padding: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 3, 0, 0, 1);"));
+        // Крестик виден только при наведении
+        deleteBtn.visibleProperty().bind(cardBox.hoverProperty());
+        deleteBtn.setOnAction(e -> CompletableFuture.runAsync(() -> TrelloDAO.deleteCard(card.getId()))
+                .thenRun(() -> Platform.runLater(() -> refreshListsAsync(mainContainer, boardId, spinner))));
 
         cardBox.setOnDragDetected(event -> {
             Dragboard db = cardBox.startDragAndDrop(TransferMode.MOVE);
             ClipboardContent content = new ClipboardContent();
             content.putString(String.valueOf(card.getId()));
             db.setContent(content);
+            SnapshotParameters params = new SnapshotParameters();
+            params.setFill(Color.TRANSPARENT);
+            db.setDragView(cardBox.snapshot(params, null));
             event.consume();
         });
 
+        Ui.lift(cardBox);
         return cardBox;
     }
 
-    private static void setupDragAndDrop(VBox cardsContainer, int listId, HBox mainContainer, int boardId, ProgressIndicator spinner) {
-        cardsContainer.setOnDragOver(event -> {
-            if (event.getGestureSource() != cardsContainer && event.getDragboard().hasString()) {
-                event.acceptTransferModes(TransferMode.MOVE);
-            }
+    private static void setupDragAndDrop(VBox column, int listId, HBox mainContainer, int boardId, ProgressIndicator spinner) {
+        column.setOnDragOver(event -> {
+            if (event.getDragboard().hasString()) event.acceptTransferModes(TransferMode.MOVE);
             event.consume();
         });
-
-        cardsContainer.setOnDragDropped(event -> {
+        column.setOnDragEntered(event -> {
+            if (event.getDragboard().hasString() && !column.getStyleClass().contains("drop")) {
+                column.getStyleClass().add("drop");
+            }
+        });
+        column.setOnDragExited(event -> column.getStyleClass().removeAll("drop"));
+        column.setOnDragDropped(event -> {
+            column.getStyleClass().removeAll("drop");
             Dragboard db = event.getDragboard();
             boolean success = false;
             if (db.hasString()) {
@@ -296,132 +303,47 @@ public class TrelloBoardScene {
         });
     }
 
-    private static String getListColor(String color) {
-        if (color == null || color.equals("null")) return MenuScene.isDarkTheme ? "#1a1a1a" : "#f0f2f5";
-
-        switch (color) {
-            case "red":
-                return MenuScene.isDarkTheme ? "#4a1a1a" : "#ffe0e0";
-            case "yellow":
-                return MenuScene.isDarkTheme ? "#4a4a1a" : "#fffacc";
-            case "green":
-                return MenuScene.isDarkTheme ? "#1a3b1a" : "#e6fbd9";
-            default:
-                return MenuScene.isDarkTheme ? "#1a1a1a" : "#f0f2f5";
-        }
-    }
-
-    private static void styleDialog(Dialog<?> dialog) {
-        if (MenuScene.isDarkTheme) {
-            DialogPane pane = dialog.getDialogPane();
-            pane.setStyle("-fx-background-color: " + MenuScene.Theme.HOVER_DARK + ";");
-            pane.lookup(".content.label").setStyle("-fx-text-fill: white;");
-            pane.lookup(".header-panel").setStyle("-fx-background-color: " + MenuScene.Theme.SIDEBAR_DARK + "; -fx-text-fill: white;");
-        }
-    }
-
     private static void showEditListDialog(TrelloList list, HBox container, int boardId, ProgressIndicator spinner) {
-        TextInputDialog dialog = new TextInputDialog(list.getTitle());
-        dialog.setTitle("Редактировать");
-        dialog.setHeaderText("Название списка");
-        dialog.initOwner(MenuScene.getStage());
-        styleDialog(dialog);
-
-        if(MenuScene.isDarkTheme) {
-            dialog.getEditor().setStyle("-fx-background-color: #333; -fx-text-fill: white;");
-        }
-
-        dialog.showAndWait().ifPresent(name -> {
-            spinner.setVisible(true);
-            CompletableFuture.runAsync(() -> TrelloDAO.updateList(list.getId(), name, list.getColor()))
-                    .thenRun(() -> Platform.runLater(() -> refreshListsAsync(container, boardId, spinner)));
-        });
+        Ui.prompt("Переименовать список", null, "Название", list.getTitle(), "Название списка", "Сохранить",
+                        MenuScene.getStage())
+                .ifPresent(name -> {
+                    spinner.setVisible(true);
+                    CompletableFuture.runAsync(() -> TrelloDAO.updateList(list.getId(), name, list.getColor()))
+                            .thenRun(() -> Platform.runLater(() -> refreshListsAsync(container, boardId, spinner)));
+                });
     }
 
-    // === ИСПРАВЛЕННЫЙ МЕТОД: ВЫБОР ЦВЕТА ===
-    private static void showColorDialog(TrelloList list, HBox container, int boardId, ProgressIndicator spinner) {
-        TrelloList freshList = TrelloDAO.getListById(list.getId());
-        if (freshList != null) list = freshList;
+    private static void showColorDialog(TrelloList original, HBox container, int boardId, ProgressIndicator spinner) {
+        TrelloList fresh = TrelloDAO.getListById(original.getId());
+        TrelloList list = fresh != null ? fresh : original;
 
-        Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Выбрать цвет");
-        dialog.initOwner(MenuScene.getStage());
-        styleDialog(dialog);
-
-        VBox colorBox = new VBox(10);
-        if (MenuScene.isDarkTheme) {
-            colorBox.setStyle("-fx-background-color: " + MenuScene.Theme.HOVER_DARK + "; -fx-padding: 10;");
-        } else {
-            colorBox.setStyle("-fx-padding: 10;");
+        ToggleButton[] swatches = new ToggleButton[COLORS.length];
+        for (int i = 0; i < COLORS.length; i++) {
+            ToggleButton b = new ToggleButton(COLORS[i][1]);
+            b.getStyleClass().setAll("toggle-button", "swatch");
+            b.setUserData(COLORS[i][0]);
+            b.setGraphic(Ui.dot(12, "list-dot", COLORS[i][0].equals("NONE") ? "none" : COLORS[i][0]));
+            swatches[i] = b;
+        }
+        Ui.segmented(swatches); // объединяем в одну группу (контейнер не нужен)
+        String current = colorClass(list.getColor());
+        for (ToggleButton b : swatches) {
+            if ((current == null && "NONE".equals(b.getUserData())) || b.getUserData().equals(current)) b.setSelected(true);
         }
 
-        ToggleGroup group = new ToggleGroup();
+        FlowPane box = new FlowPane(8, 8, swatches);
+        VBox content = new VBox(14, Ui.wrap("Цвет помогает отличать колонки, например «срочно» — красным.", "muted"), box);
 
-        RadioButton redBtn = new RadioButton("Красный");
-        redBtn.setUserData("red");
-        redBtn.setToggleGroup(group);
+        if (!Ui.form("Цвет списка «" + list.getTitle() + "»", "Применить", content, null, null, MenuScene.getStage())) return;
 
-        RadioButton yellowBtn = new RadioButton("Желтый");
-        yellowBtn.setUserData("yellow");
-        yellowBtn.setToggleGroup(group);
+        ToggleButton selected = null;
+        for (ToggleButton b : swatches) if (b.isSelected()) selected = b;
+        if (selected == null) return;
+        String chosen = (String) selected.getUserData();
+        String colorToSave = "NONE".equals(chosen) ? null : chosen;
 
-        RadioButton greenBtn = new RadioButton("Зеленый");
-        greenBtn.setUserData("green");
-        greenBtn.setToggleGroup(group);
-
-        // ВАЖНО: Используем строку "NONE" вместо null, чтобы конвертер не ломался
-        RadioButton noneBtn = new RadioButton("Без цвета");
-        noneBtn.setUserData("NONE");
-        noneBtn.setToggleGroup(group);
-
-        if (MenuScene.isDarkTheme) {
-            String radioStyle = "-fx-text-fill: white;";
-            redBtn.setStyle(radioStyle);
-            yellowBtn.setStyle(radioStyle);
-            greenBtn.setStyle(radioStyle);
-            noneBtn.setStyle(radioStyle);
-        }
-
-        String c = list.getColor();
-        if ("red".equals(c)) group.selectToggle(redBtn);
-        else if ("yellow".equals(c)) group.selectToggle(yellowBtn);
-        else if ("green".equals(c)) group.selectToggle(greenBtn);
-        else group.selectToggle(noneBtn);
-
-        colorBox.getChildren().addAll(redBtn, yellowBtn, greenBtn, noneBtn);
-        dialog.getDialogPane().setContent(colorBox);
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-
-        dialog.setResultConverter(b -> {
-            if (b == ButtonType.OK) {
-                Toggle selected = group.getSelectedToggle();
-                // Если ничего не выбрано, возвращаем null (отмена)
-                // Если выбрано, возвращаем UserData (строку)
-                return selected != null ? (String) selected.getUserData() : null;
-            }
-            return null;
-        });
-
-        TrelloList finalL = list;
-        dialog.showAndWait().ifPresent(col -> {
-            System.out.println("Выбран цвет: " + col); // ДЕБАГ
-
-            // Если пришло "NONE", значит превращаем это в null для базы данных
-            String colorToSave = "NONE".equals(col) ? null : col;
-
-            spinner.setVisible(true);
-            CompletableFuture.runAsync(() -> TrelloDAO.updateList(finalL.getId(), finalL.getTitle(), colorToSave))
-                    .thenRun(() -> Platform.runLater(() -> refreshListsAsync(container, boardId, spinner)));
-        });
-    }
-
-    private static void showError(String title, String content) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Ошибка");
-        alert.setHeaderText(title);
-        alert.setContentText(content);
-        alert.initOwner(MenuScene.getStage());
-        styleDialog(alert);
-        alert.showAndWait();
+        spinner.setVisible(true);
+        CompletableFuture.runAsync(() -> TrelloDAO.updateList(list.getId(), list.getTitle(), colorToSave))
+                .thenRun(() -> Platform.runLater(() -> refreshListsAsync(container, boardId, spinner)));
     }
 }

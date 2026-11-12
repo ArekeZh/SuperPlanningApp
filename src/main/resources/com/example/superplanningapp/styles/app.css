@@ -1,0 +1,538 @@
+/* ============================================================================
+   SuperPlanningApp — design system
+   Ported from Nalu.Prep (naluprep/app/globals.css, platform.module.css,
+   auth.module.css): white and airy, hairline borders, a dark pill that leads,
+   one cyan accent, mono small capitals over a surf line.
+
+   Colours are looked-up colours (-c-*) defined in theme-light.css and
+   theme-dark.css; this file only refers to them. Shadows differ per theme,
+   so they live in the theme files too.
+   ========================================================================== */
+
+.root, .themed, .dialog-pane {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 14px;
+    -fx-base: -c-base;
+    -fx-background: -c-bg;
+    -fx-control-inner-background: -c-bg;
+    -fx-accent: -c-ul;
+    -fx-focus-color: -c-ul;
+    -fx-faint-focus-color: transparent;
+    -fx-text-background-color: -c-fg;
+    -fx-text-base-color: -c-fg;
+    -fx-text-inner-color: -c-fg;
+    -fx-mark-color: -c-fg;
+    -fx-selection-bar: -c-tile;
+    -fx-selection-bar-non-focused: -c-tile;
+    -fx-selection-bar-text: -c-fg;
+}
+.root { -fx-background-color: -c-bg; }
+
+.label { -fx-text-fill: -c-fg; }
+
+/* ---------------------------------------------------------------- type */
+.h1 { -fx-font-size: 40px; -fx-font-weight: bold; }
+.h2 { -fx-font-size: 24px; -fx-font-weight: bold; }
+.h3 { -fx-font-size: 17px; -fx-font-weight: bold; }
+.semi { -fx-font-family: "Segoe UI Semibold"; }
+.lead { -fx-text-fill: -c-muted; -fx-font-size: 15.5px; }
+.muted { -fx-text-fill: -c-muted; }
+.faint { -fx-text-fill: -c-faint; }
+.small { -fx-font-size: 12.5px; }
+.mono { -fx-font-family: "Consolas"; -fx-font-size: 12px; -fx-text-fill: -c-faint; }
+.crumb-text { -fx-font-family: "Consolas"; -fx-font-size: 12.5px; -fx-text-fill: -c-muted; }
+.surf-path { -fx-fill: transparent; -fx-stroke: -c-ul; -fx-stroke-width: 1.2; -fx-opacity: 0.55; }
+.brand-name { -fx-font-size: 20px; -fx-font-weight: bold; }
+
+/* ---------------------------------------------------------------- icons */
+.icon {
+    -fx-fill: transparent;
+    -fx-stroke: -c-fg;
+    -fx-stroke-width: 2;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+}
+
+/* -------------------------------------------- buttons: a dark pill leads */
+.btn, .btn-ghost {
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-border-color: transparent;
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 14px;
+    -fx-padding: 10 20 10 20;
+    -fx-graphic-text-gap: 8;
+    -fx-cursor: hand;
+}
+.btn { -fx-background-color: -c-fg; -fx-text-fill: -c-bg; }
+.btn .icon { -fx-stroke: -c-bg; }
+.btn:hover { -fx-translate-y: -1; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 20, 0, 0, 8); }
+.btn:pressed { -fx-translate-y: 0; -fx-opacity: 0.88; }
+.btn:focus-visible { -fx-background-color: -c-ul, -c-fg; -fx-background-insets: -3, 0; }
+
+.btn-ghost {
+    -fx-background-color: -c-line-strong, -c-bg;
+    -fx-background-insets: 0, 1;
+    -fx-text-fill: -c-muted;
+}
+.btn-ghost .icon { -fx-stroke: -c-muted; }
+.btn-ghost:hover { -fx-background-color: -c-fg, -c-bg; -fx-text-fill: -c-fg; }
+.btn-ghost:hover .icon { -fx-stroke: -c-fg; }
+.btn-ghost:focus-visible { -fx-background-color: -c-ul, -c-bg; }
+.btn-ghost.danger { -fx-text-fill: -c-bad; }
+.btn-ghost.danger .icon { -fx-stroke: -c-bad; }
+.btn-ghost.danger:hover { -fx-background-color: -c-bad, -c-bg; }
+
+.btn:disabled, .btn-ghost:disabled { -fx-opacity: 0.4; }
+.btn-sm { -fx-padding: 6 14 6 14; -fx-font-size: 12.5px; }
+
+.icon-btn {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-padding: 7;
+    -fx-cursor: hand;
+}
+.icon-btn .icon { -fx-stroke: -c-muted; }
+.icon-btn:hover { -fx-background-color: -c-tile; }
+.icon-btn:hover .icon { -fx-stroke: -c-fg; }
+.icon-btn.danger:hover { -fx-background-color: -c-bad-bg; }
+.icon-btn.danger:hover .icon { -fx-stroke: -c-bad; }
+
+.cam-btn {
+    -fx-background-color: -c-card, -c-fg;
+    -fx-background-insets: 0, 3;
+    -fx-background-radius: 999;
+    -fx-padding: 11;
+    -fx-cursor: hand;
+}
+.cam-btn .icon { -fx-stroke: -c-bg; }
+
+.link-btn {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-text-fill: -c-fg;
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-underline: true;
+    -fx-cursor: hand;
+}
+.link-btn:hover { -fx-text-fill: -c-ul; }
+
+/* ------------------------------------------------- segmented control */
+.ctl {
+    -fx-background-color: -c-tile;
+    -fx-background-radius: 999;
+    -fx-padding: 3;
+    -fx-spacing: 2;
+    -fx-alignment: center-left;
+}
+.ctl .toggle-button {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-border-color: transparent;
+    -fx-text-fill: -c-muted;
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 12.5px;
+    -fx-padding: 6 13 6 13;
+    -fx-graphic-text-gap: 7;
+    -fx-cursor: hand;
+}
+.ctl .toggle-button .icon { -fx-stroke: -c-muted; }
+.ctl .toggle-button:hover { -fx-text-fill: -c-fg; }
+.ctl .toggle-button:hover .icon { -fx-stroke: -c-fg; }
+.ctl .toggle-button:selected {
+    -fx-background-color: -c-ctl-on;
+    -fx-text-fill: -c-fg;
+    -fx-effect: dropshadow(gaussian, rgba(15,23,42,0.18), 6, 0, 0, 1);
+}
+.ctl .toggle-button:selected .icon { -fx-stroke: -c-fg; }
+
+/* ------------------------------------------------------------- forms */
+.text-field, .text-area {
+    -fx-background-color: -c-line-strong, -c-bg;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 12, 11;
+    -fx-text-fill: -c-fg;
+    -fx-prompt-text-fill: -c-faint;
+    -fx-highlight-fill: -c-ul;
+    -fx-highlight-text-fill: #FFFFFF;
+    -fx-font-size: 14.5px;
+}
+.text-field { -fx-padding: 11 14 11 14; }
+.text-field:focused, .text-area:focused {
+    -fx-background-color: -c-ring, -c-ul, -c-bg;
+    -fx-background-insets: -4, 0, 1;
+    -fx-background-radius: 16, 12, 11;
+}
+.text-area { -fx-padding: 1; }
+.text-area .content { -fx-background-color: transparent; -fx-padding: 9 12 9 12; }
+
+.fld-label { -fx-font-family: "Segoe UI Semibold"; -fx-font-size: 13px; }
+.hint { -fx-font-size: 12px; -fx-text-fill: -c-faint; }
+.err { -fx-font-size: 13px; -fx-text-fill: -c-bad; }
+.ok { -fx-font-size: 13px; -fx-text-fill: -c-ok; }
+
+/* --------------------------------------------------------- surfaces */
+.platform {
+    -fx-background-color: -c-tile-line, -c-card;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 24, 23;
+    -fx-padding: 26;
+}
+.note {
+    -fx-background-color: -c-tile;
+    -fx-background-radius: 14;
+    -fx-padding: 14 18 14 18;
+}
+.note .label { -fx-text-fill: -c-muted; -fx-font-size: 13.5px; }
+
+/* -------------------------------------------- rows: one card per item */
+.row {
+    -fx-background-color: -c-tile-line, -c-bg;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 16, 15;
+    -fx-padding: 14 16 14 14;
+    -fx-spacing: 16;
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+}
+.row:hover { -fx-background-color: -c-line-strong, -c-tile; }
+.row.static { -fx-cursor: default; }
+.row.static:hover { -fx-background-color: -c-tile-line, -c-bg; }
+.row-title { -fx-font-size: 15.5px; -fx-font-weight: bold; }
+.row-meta { -fx-font-size: 13px; -fx-text-fill: -c-muted; }
+
+.status-pill {
+    -fx-background-color: -c-line-strong, -c-bg;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 999;
+    -fx-padding: 6 16 6 16;
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 13px;
+    -fx-text-fill: -c-muted;
+}
+.status-pill.ready { -fx-background-color: -c-fg; -fx-background-insets: 0; -fx-text-fill: -c-bg; }
+
+.chip {
+    -fx-background-color: -c-tile;
+    -fx-background-radius: 999;
+    -fx-padding: 4 10 4 10;
+    -fx-font-family: "Consolas";
+    -fx-font-size: 11.5px;
+    -fx-text-fill: -c-muted;
+}
+.chip.accent { -fx-background-color: -c-pastel; -fx-text-fill: -c-ul; }
+.chip.ok { -fx-background-color: -c-ok-bg; -fx-text-fill: -c-ok; }
+.chip.bad { -fx-background-color: -c-bad-bg; -fx-text-fill: -c-bad; }
+.chip.warn { -fx-background-color: -c-warn-bg; -fx-text-fill: -c-warn; }
+
+.badge {
+    -fx-background-color: #FF3B3B;
+    -fx-background-radius: 999;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: bold;
+    -fx-padding: 1 6 1 6;
+}
+
+/* ------------------------------------------- icon tiles (skill colours) */
+.skill { -fx-alignment: center; }
+.skill .icon { -fx-stroke: #FFFFFF; }
+.skill-sky    { -fx-background-color: linear-gradient(to bottom right, #38BDF8, #0284C7); }
+.skill-purple { -fx-background-color: linear-gradient(to bottom right, #A78BFA, #7C3AED); }
+.skill-pink   { -fx-background-color: linear-gradient(to bottom right, #F472B6, #DB2777); }
+.skill-amber  { -fx-background-color: linear-gradient(to bottom right, #FBBF24, #D97706); }
+.skill-green  { -fx-background-color: linear-gradient(to bottom right, #34D399, #059669); }
+.skill-slate  { -fx-background-color: linear-gradient(to bottom right, #A1A1AA, #52525B); }
+
+.avatar {
+    -fx-background-color: linear-gradient(to bottom right, #7DD3FC, #A78BFA);
+    -fx-background-radius: 999;
+    -fx-alignment: center;
+}
+.avatar-letter { -fx-text-fill: #FFFFFF; -fx-font-weight: bold; }
+.avatar-ring { -fx-border-color: -c-card; -fx-border-width: 2; -fx-border-radius: 999; }
+
+/* ------------------------------------------------------------ shell */
+.sidebar {
+    -fx-background-color: -c-tile-line,
+        linear-gradient(to bottom, -c-paper-top 0%, -c-paper-mid 55%, -c-paper-bot 100%);
+    -fx-background-insets: 0, 0 1 0 0;
+}
+.nav-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 16;
+    -fx-padding: 6 12 6 7;
+    -fx-spacing: 14;
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+}
+.nav-text { -fx-font-family: "Segoe UI Semibold"; -fx-font-size: 15.5px; -fx-text-fill: -c-fg-80; }
+.nav-tile {
+    -fx-background-color: -c-nav-tile-line, linear-gradient(to bottom right, -c-nav-tile-a, -c-nav-tile-b);
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 12, 11;
+    -fx-alignment: center;
+}
+.nav-tile .icon { -fx-stroke: -c-nav-ink; }
+.nav-item.active, .nav-item.active:hover {
+    -fx-background-color: -c-tile-line, -c-card;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 16, 15;
+}
+.nav-item.active .nav-text { -fx-font-family: "Segoe UI"; -fx-font-weight: bold; -fx-text-fill: -c-fg; }
+.nav-item.active .nav-tile {
+    -fx-background-color: linear-gradient(to bottom right, #38BDF8, #0284C7);
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+}
+.nav-item.active .nav-tile .icon { -fx-stroke: #FFFFFF; }
+
+.acct {
+    -fx-background-color: -c-tile-line, -c-card;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 18, 17;
+    -fx-padding: 10 12 10 10;
+    -fx-spacing: 12;
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+}
+.acct:hover { -fx-background-color: -c-line-strong, -c-card; }
+.acct-name { -fx-font-size: 15px; -fx-font-weight: bold; }
+
+/* The painted sky, washed thin over the top of each page. */
+.main { -fx-background-color: linear-gradient(from 0px 0px to 0px 460px, -c-sky 0%, -c-bg 100%); }
+
+.wave-1 { -fx-fill: -c-wave-1; }
+.wave-2 { -fx-fill: -c-wave-2; }
+.wave-3 { -fx-fill: -c-wave-3; }
+
+.scrim { -fx-background-color: -c-scrim; }
+.profile-panel { -fx-background-color: -c-card; }
+
+/* ------------------------------------------------------ scrolling */
+.scroll-pane, .scroll-pane > .viewport, .scroll-pane > .corner {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+.scroll-pane { -fx-padding: 0; }
+.scroll-bar { -fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 2; }
+.scroll-bar:vertical { -fx-pref-width: 10; }
+.scroll-bar:horizontal { -fx-pref-height: 10; }
+.scroll-bar > .thumb { -fx-background-color: -c-line-strong; -fx-background-insets: 0; -fx-background-radius: 999; }
+.scroll-bar > .thumb:hover { -fx-background-color: -c-faint; }
+.scroll-bar > .track, .scroll-bar > .track-background { -fx-background-color: transparent; -fx-border-color: transparent; }
+.scroll-bar > .increment-button, .scroll-bar > .decrement-button { -fx-background-color: transparent; -fx-padding: 0; }
+.scroll-bar > .increment-button > .increment-arrow,
+.scroll-bar > .decrement-button > .decrement-arrow { -fx-padding: 0; }
+
+.progress-indicator { -fx-progress-color: -c-ul; }
+.progress-bar { -fx-indeterminate-bar-length: 60; }
+.progress-bar > .track { -fx-background-color: -c-tile; -fx-background-insets: 0; -fx-background-radius: 999; }
+.progress-bar > .bar {
+    -fx-background-color: linear-gradient(to right, #38BDF8, #0284C7);
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-padding: 3;
+}
+
+/* ----------------------------------------------------------- chat */
+.bubble { -fx-padding: 10 15 10 15; -fx-font-size: 14.5px; -fx-line-spacing: 2; }
+.bubble-user { -fx-background-color: -c-fg; -fx-background-radius: 18 18 6 18; -fx-text-fill: -c-bg; }
+.bubble-ai { -fx-background-color: -c-tile; -fx-background-radius: 18 18 18 6; -fx-text-fill: -c-fg; }
+.bubble-error { -fx-background-color: -c-bad-bg; -fx-text-fill: -c-bad; }
+.bubble-typing { -fx-text-fill: -c-muted; }
+.composer {
+    -fx-background-color: -c-line-strong, -c-bg;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 999;
+    -fx-padding: 5 5 5 10;
+    -fx-spacing: 6;
+    -fx-alignment: center-left;
+}
+.composer:focus-within {
+    -fx-background-color: -c-ring, -c-ul, -c-bg;
+    -fx-background-insets: -4, 0, 1;
+}
+.composer .text-field, .composer .text-field:focused {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 9 6 9 6;
+}
+.send-btn {
+    -fx-background-color: -c-fg;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+.send-btn .icon { -fx-stroke: -c-bg; }
+.send-btn:disabled { -fx-opacity: 0.35; }
+
+/* --------------------------------------------------------- habits */
+.stat {
+    -fx-background-color: -c-tile-line, -c-card;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 20, 19;
+    -fx-padding: 18 20 18 20;
+    -fx-spacing: 8;
+}
+.stat-value { -fx-font-size: 30px; -fx-font-weight: bold; }
+.cal-head { -fx-font-family: "Consolas"; -fx-font-size: 11.5px; -fx-text-fill: -c-faint; }
+.day {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+    -fx-border-color: transparent;
+    -fx-border-radius: 12;
+    -fx-text-fill: -c-fg;
+    -fx-font-size: 14px;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+.day:hover { -fx-background-color: -c-tile; }
+.day.future { -fx-text-fill: -c-faint; }
+.day.partial { -fx-background-color: -c-pastel; }
+.day.full { -fx-background-color: -c-ok-bg; -fx-text-fill: -c-ok; -fx-font-weight: bold; }
+.day.none { -fx-background-color: -c-bad-bg; -fx-text-fill: -c-bad; }
+.day.today { -fx-border-color: -c-line-strong; -fx-border-width: 1.5; }
+.day.selected, .day.selected:hover {
+    -fx-background-color: -c-fg;
+    -fx-text-fill: -c-bg;
+    -fx-font-weight: bold;
+    -fx-border-color: transparent;
+}
+.legend-dot { -fx-background-radius: 999; }
+.legend-dot.full { -fx-background-color: -c-ok; }
+.legend-dot.partial { -fx-background-color: -c-ul; }
+.legend-dot.none { -fx-background-color: -c-bad; }
+
+.habit-row {
+    -fx-background-color: -c-tile-line, -c-bg;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 16, 15;
+    -fx-padding: 12 12 12 14;
+    -fx-spacing: 14;
+    -fx-alignment: center-left;
+}
+.habit-row:hover { -fx-background-color: -c-line-strong, -c-tile; }
+.habit-row.done, .habit-row.done:hover { -fx-background-color: -c-ok-line, -c-ok-bg; }
+.habit-title { -fx-font-family: "Segoe UI Semibold"; -fx-font-size: 15px; }
+.habit-row.done .habit-title { -fx-text-fill: -c-muted; }
+.habit-row.done .habit-title .text { -fx-strikethrough: true; }
+.check {
+    -fx-background-color: -c-line-strong, -c-bg;
+    -fx-background-insets: 0, 2;
+    -fx-background-radius: 999;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+.check .icon { -fx-stroke: transparent; }
+.check:hover { -fx-background-color: -c-ul, -c-bg; }
+.check:hover .icon { -fx-stroke: -c-line-strong; }
+.check.on, .check.on:hover {
+    -fx-background-color: linear-gradient(to bottom right, #34D399, #059669);
+    -fx-background-insets: 0;
+}
+.check.on .icon, .check.on:hover .icon { -fx-stroke: #FFFFFF; }
+
+/* --------------------------------------------------------- boards */
+.board-card {
+    -fx-background-color: -c-tile-line, -c-card;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 22, 21;
+    -fx-padding: 20;
+    -fx-spacing: 10;
+    -fx-cursor: hand;
+}
+.board-card:hover { -fx-background-color: -c-line-strong, -c-card; }
+.board-title { -fx-font-size: 18px; -fx-font-weight: bold; }
+.board-desc { -fx-font-size: 13px; -fx-text-fill: -c-muted; }
+
+.list-col { -fx-background-color: -c-tile; -fx-background-radius: 20; -fx-padding: 14; -fx-spacing: 12; }
+.list-col.red { -fx-background-color: -c-list-red; }
+.list-col.yellow { -fx-background-color: -c-list-yellow; }
+.list-col.green { -fx-background-color: -c-list-green; }
+.list-col.drop {
+    -fx-border-color: -c-ul;
+    -fx-border-width: 2;
+    -fx-border-radius: 20;
+    -fx-border-style: segments(7, 6);
+}
+.list-title { -fx-font-size: 15.5px; -fx-font-weight: bold; }
+.list-dot { -fx-background-color: -c-ul; -fx-background-radius: 999; }
+.list-dot.red { -fx-background-color: #FF3B3B; }
+.list-dot.yellow { -fx-background-color: #F59E0B; }
+.list-dot.green { -fx-background-color: #10B981; }
+.list-dot.none { -fx-background-color: -c-line-strong; }
+
+.task-card {
+    -fx-background-color: -c-tile-line, -c-card;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 14, 13;
+    -fx-padding: 11 10 12 14;
+    -fx-spacing: 4;
+    -fx-cursor: open-hand;
+}
+.task-card:hover { -fx-background-color: -c-line-strong, -c-card; }
+.task-title { -fx-font-family: "Segoe UI Semibold"; -fx-font-size: 14.5px; }
+.task-desc { -fx-font-size: 12.5px; -fx-text-fill: -c-muted; }
+
+.menu-button.plain {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 10;
+    -fx-padding: 4;
+    -fx-cursor: hand;
+}
+.menu-button.plain:hover, .menu-button.plain:showing { -fx-background-color: -c-card; }
+.menu-button.plain > .label { -fx-padding: 0; }
+.menu-button.plain > .arrow-button { -fx-padding: 0; -fx-background-color: transparent; }
+.menu-button.plain > .arrow-button > .arrow { -fx-padding: 0; -fx-background-color: transparent; }
+.menu-button.plain .icon { -fx-stroke: -c-muted; }
+
+.swatch {
+    -fx-background-color: -c-line-strong, -c-bg;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 999;
+    -fx-padding: 8 14 8 12;
+    -fx-graphic-text-gap: 8;
+    -fx-text-fill: -c-muted;
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-cursor: hand;
+}
+.swatch:hover { -fx-text-fill: -c-fg; }
+.swatch:selected { -fx-background-color: -c-fg, -c-bg; -fx-background-insets: 0, 2; -fx-text-fill: -c-fg; }
+
+/* ---------------------------------------------------------- dialogs */
+.dialog-pane { -fx-background-color: -c-platform; -fx-padding: 0; }
+.dialog-pane > .header-panel {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 24 26 2 26;
+}
+.dialog-pane > .header-panel > .label { -fx-font-size: 19px; -fx-font-weight: bold; -fx-wrap-text: true; }
+.dialog-pane > .content { -fx-padding: 14 26 8 26; }
+.dialog-pane > .content.label { -fx-text-fill: -c-muted; -fx-font-size: 14px; -fx-wrap-text: true; }
+.dialog-pane > .button-bar > .container { -fx-padding: 14 26 22 26; }
+.dialog-pane .button {
+    -fx-background-color: -c-line-strong, -c-bg;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 999;
+    -fx-border-color: transparent;
+    -fx-text-fill: -c-muted;
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-padding: 9 20 9 20;
+    -fx-cursor: hand;
+}
+.dialog-pane .button:hover { -fx-background-color: -c-fg, -c-bg; -fx-text-fill: -c-fg; }
+.dialog-pane .button:default { -fx-background-color: -c-fg; -fx-background-insets: 0; -fx-text-fill: -c-bg; }
+.dialog-pane .button:default:hover { -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 18, 0, 0, 6); }
+.dialog-pane .button.danger { -fx-background-color: #DC2626; -fx-background-insets: 0; -fx-text-fill: #FFFFFF; }
+.dialog-pane .button:disabled { -fx-opacity: 0.4; }
+
+.dialog-root { -fx-background-color: -c-platform; -fx-padding: 24 26 24 26; }
